@@ -16,7 +16,10 @@ const STATE = {
   selectedAssignmentId: null, allSubmissions: [], expandedSubId: null,
   selectedSessionId: null,
   _archiveOpen: false,
+  _newAssignmentOpen: true,
+  _joinCodeValidated: false,
   realtimeChannel: null,
+  _realtimePollInterval: null,
   pauseCountdownInterval: null,
   isPreview: false,
   editingAssignmentId: null,
@@ -55,6 +58,20 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const t = document.getElementById('screen-' + name);
   if (t) t.classList.add('active');
+  // Reset student login state when returning to that screen
+  if (name === 'student-login') {
+    STATE._joinCodeValidated = false;
+    const nameSection = document.getElementById('s-name-section');
+    const nameGroup = document.getElementById('s-name-group');
+    const statusEl = document.getElementById('s-status');
+    if (nameSection) nameSection.style.display = 'none';
+    if (nameGroup) nameGroup.innerHTML = `<label>Your Name</label><input class="form-input" id="s-name" type="text" placeholder="e.g. Jordan M." autocomplete="off">`;
+    if (statusEl) { statusEl.className = 'status-msg'; statusEl.textContent = ''; }
+    const btn = document.getElementById('s-login-btn');
+    if (btn) btn.textContent = 'Continue →';
+    const code = document.getElementById('s-password');
+    if (code) code.value = '';
+  }
 }
 
 // ── TOAST ──
@@ -218,27 +235,79 @@ async function setNewPassword() {
 
 // ── STUDENT LOGIN ──
 
-// Called on join code blur — fetches roster if available and swaps name field to dropdown
+// Reset name section when join code is edited
+function onJoinCodeInput() {
+  const nameSection = document.getElementById('s-name-section');
+  const nameGroup = document.getElementById('s-name-group');
+  const statusEl = document.getElementById('s-status');
+  // Reset back to text input if user changes the code
+  nameGroup.innerHTML = `<label>Your Name</label>
+    <input class="form-input" id="s-name" type="text" placeholder="e.g. Jordan M." autocomplete="off">`;
+  nameSection.style.display = 'none';
+  statusEl.className = 'status-msg';
+  statusEl.textContent = '';
+  STATE._joinCodeValidated = false;
+}
+
+// Two-step: first press validates code + reveals name field; second press submits
+async function studentLoginStep() {
+  const joinCode = document.getElementById('s-password')?.value.trim().toUpperCase();
+  const statusEl = document.getElementById('s-status');
+  const btn = document.getElementById('s-login-btn');
+  const nameSection = document.getElementById('s-name-section');
+
+  // Step 1 — validate code and reveal name field
+  if (!STATE._joinCodeValidated) {
+    if (!joinCode || joinCode.length < 3) {
+      statusEl.className = 'status-msg error';
+      statusEl.textContent = 'Please enter a join code.';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Checking…';
+    statusEl.className = 'status-msg'; statusEl.textContent = '';
+    try {
+      const {data:sessions} = await db.from('sessions').select('assignment_id').eq('join_code', joinCode).eq('status', 'active');
+      if (!sessions?.length) {
+        statusEl.className = 'status-msg error';
+        statusEl.textContent = 'No active session found with that join code. Ask your teacher to check.';
+        btn.disabled = false; btn.textContent = 'Continue →';
+        return;
+      }
+      // Code is valid — fetch roster to swap name field if needed
+      await prefetchRosterForCode();
+      nameSection.style.display = 'block';
+      STATE._joinCodeValidated = true;
+      btn.textContent = 'Join Session →';
+      // Focus the name field
+      setTimeout(() => document.getElementById('s-name')?.focus(), 50);
+    } catch(err) {
+      statusEl.className = 'status-msg error';
+      statusEl.textContent = 'Something went wrong: ' + err.message;
+    } finally { btn.disabled = false; }
+    return;
+  }
+
+  // Step 2 — submit with name
+  studentLogin();
+}
+
+// Called after code validation — fetches roster and swaps name field to dropdown if available
 async function prefetchRosterForCode() {
   const joinCode = document.getElementById('s-password')?.value.trim().toUpperCase();
   const nameGroup = document.getElementById('s-name-group');
   if (!joinCode || joinCode.length < 4) return;
 
   try {
-    // Find active session
     const {data:sessions} = await db.from('sessions').select('assignment_id').eq('join_code',joinCode).eq('status','active');
     if (!sessions?.length) return;
 
-    // Find assignment's class_id
     const {data:asgn} = await db.from('assignments').select('class_id').eq('id',sessions[0].assignment_id).single();
     if (!asgn?.class_id) return;
 
-    // Fetch the roster
     const {data:cls} = await db.from('classes').select('student_roster').eq('id',asgn.class_id).single();
     const roster = cls?.student_roster||[];
     if (!roster.length) return;
 
-    // Swap name input → dropdown
     const names = roster.map(s => typeof s==='string' ? s : s.name).sort();
     nameGroup.innerHTML = `<label>Your Name</label>
       <select class="form-input form-select" id="s-name">
@@ -969,9 +1038,11 @@ function renderAssignmentList(assignments) {
         :`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="openSession('${a.id}')">Open Session</button>
            <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>`;
     const editPreviewActions = a.archived
-      ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();unarchiveAssignment('${a.id}')">Unarchive</button>`
+      ?`<button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();unarchiveAssignment('${a.id}')">↩ Unarchive</button>
+         <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Copy to New</button>`
       :`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();editAssignment('${a.id}')">Edit</button>
          <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
+         <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate</button>
          <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem;color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>`;
     return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
@@ -1008,6 +1079,14 @@ function toggleArchivePanel() {
   loadDashboard();
 }
 
+function toggleNewAssignmentPanel() {
+  STATE._newAssignmentOpen = !STATE._newAssignmentOpen;
+  const body = document.getElementById('new-assignment-body');
+  const chevron = document.getElementById('new-assignment-chevron');
+  if (body) body.style.display = STATE._newAssignmentOpen ? '' : 'none';
+  if (chevron) chevron.style.transform = STATE._newAssignmentOpen ? '' : 'rotate(180deg)';
+}
+
 async function archiveAssignment(id, title) {
   try {
     const {error} = await db.from('assignments').update({archived: true}).eq('id', id);
@@ -1024,6 +1103,61 @@ async function unarchiveAssignment(id) {
     toast('Assignment restored', 'success');
     loadDashboard();
   } catch(err) { toast('Restore failed: '+err.message, 'error'); }
+}
+
+async function duplicateAssignment(id) {
+  const {data:{user}} = await db.auth.getUser();
+  if (!user) return;
+
+  // Check plan limits
+  const limited = await checkPlanLimit('assignment', user.id);
+  if (limited) return;
+
+  try {
+    // Fetch the original assignment
+    const {data:orig, error:aErr} = await db.from('assignments').select('*').eq('id', id).single();
+    if (aErr) throw aErr;
+
+    // Fetch its sources
+    const {data:origSources} = await db.from('sources').select('*').eq('assignment_id', id).order('sort_order', {ascending: true});
+
+    // Generate a new join code
+    const newCode = Math.random().toString(36).slice(2,7).toUpperCase();
+
+    // Insert the new assignment
+    const {data:newA, error:nErr} = await db.from('assignments').insert({
+      teacher_id: user.id,
+      title: `Copy of ${orig.title}`,
+      join_code: newCode,
+      prompt_type: orig.prompt_type,
+      prompt_text: orig.prompt_text,
+      time_limit_minutes: orig.time_limit_minutes,
+      allow_spellcheck: orig.allow_spellcheck,
+      grade_level: orig.grade_level,
+      subject: orig.subject,
+      class_id: orig.class_id,
+      archived: false,
+    }).select().single();
+    if (nErr) throw nErr;
+
+    // Copy sources — reuse existing storage_path, no re-upload needed
+    if (origSources && origSources.length) {
+      const sourceRows = origSources.map((s, i) => ({
+        assignment_id: newA.id,
+        teacher_id: user.id,
+        source_type: s.source_type,
+        label: s.label,
+        sort_order: i,
+        text_content: s.text_content || null,
+        storage_path: s.storage_path || null,
+      }));
+      const {error:sErr} = await db.from('sources').insert(sourceRows);
+      if (sErr) console.warn('Source copy failed:', sErr.message);
+    }
+
+    toast(`"Copy of ${orig.title}" created as a new draft`, 'success', 4000);
+    loadDashboard();
+  } catch(err) { toast('Duplicate failed: ' + err.message, 'error'); }
 }
 
 
@@ -1654,23 +1788,46 @@ function subscribeToLiveSession(sessionId) {
     db.removeChannel(STATE.realtimeChannel);
     STATE.realtimeChannel=null;
   }
+  // Clear any existing poll interval
+  if(STATE._realtimePollInterval) { clearInterval(STATE._realtimePollInterval); STATE._realtimePollInterval=null; }
+
   document.getElementById('realtime-badge').style.display='inline-flex';
-  const ch=db.channel('live-session-'+sessionId)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'submissions',filter:`session_id=eq.${sessionId}`},()=>{ loadSubmissions(STATE.selectedAssignmentId); })
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'submissions',filter:`session_id=eq.${sessionId}`},(payload)=>{
-      // Update only the changed row in STATE.allSubmissions for efficiency
-      if(STATE.allSubmissions&&STATE.allSubmissions.length){
-        const idx=STATE.allSubmissions.findIndex(s=>s.id===payload.new.id);
-        if(idx>=0){STATE.allSubmissions[idx]={...STATE.allSubmissions[idx],...payload.new};renderSubmissionsTable(STATE.allSubmissions);}
-        else{loadSubmissions(STATE.selectedAssignmentId);}
-      }
-    })
-    .subscribe();
-  STATE.realtimeChannel=ch;
+
+  const doSubscribe = () => {
+    if(STATE.realtimeChannel) { db.removeChannel(STATE.realtimeChannel); STATE.realtimeChannel=null; }
+    const ch=db.channel('live-session-'+sessionId+'-'+Date.now())
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'submissions',filter:`session_id=eq.${sessionId}`},()=>{ loadSubmissions(STATE.selectedAssignmentId); })
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'submissions',filter:`session_id=eq.${sessionId}`},(payload)=>{
+        if(STATE.allSubmissions&&STATE.allSubmissions.length){
+          const idx=STATE.allSubmissions.findIndex(s=>s.id===payload.new.id);
+          if(idx>=0){STATE.allSubmissions[idx]={...STATE.allSubmissions[idx],...payload.new};renderSubmissionsTable(STATE.allSubmissions);}
+          else{loadSubmissions(STATE.selectedAssignmentId);}
+        }
+      })
+      .subscribe((status)=>{
+        if(status==='SUBSCRIBED') {
+          document.getElementById('realtime-badge').style.display='inline-flex';
+        }
+        if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED') {
+          // Reconnect after 3s
+          setTimeout(()=>{ if(STATE.selectedAssignmentId) doSubscribe(); }, 3000);
+        }
+      });
+    STATE.realtimeChannel=ch;
+  };
+
+  doSubscribe();
+
+  // Polling fallback: re-fetch submissions every 15s regardless of realtime status
+  // This ensures the teacher always sees current data even if realtime drops
+  STATE._realtimePollInterval = setInterval(()=>{
+    if(STATE.selectedAssignmentId) loadSubmissions(STATE.selectedAssignmentId);
+  }, 15000);
 }
 
 function unsubscribeLiveSession() {
   if(STATE.realtimeChannel){db.removeChannel(STATE.realtimeChannel);STATE.realtimeChannel=null;}
+  if(STATE._realtimePollInterval){clearInterval(STATE._realtimePollInterval);STATE._realtimePollInterval=null;}
   document.getElementById('realtime-badge').style.display='none';
 }
 
@@ -1876,7 +2033,7 @@ function renderSubmissionsTable(submissions) {
     const log=s.process_log||[];
     const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
     const largePaste=pastes.some(e=>e.char_count>200),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
-    const notable=[pastes.length>0?`<span style="color:var(--warning)">paste ×${pastes.length}</span>`:'',largePaste?`<span style="color:var(--warning)">large paste</span>`:'',blurs.length>0?`<span style="color:var(--pt-muted)">focus ×${blurs.length}</span>`:'',wordDrops.length>0?`<span style="color:var(--pt-muted)">word drop</span>`:''].filter(Boolean).join(' &nbsp;');
+    const notable=[pastes.length>0?`<span style="color:var(--warning)">paste ×${pastes.length}</span>`:'',largePaste?`<span style="color:var(--warning)">large paste</span>`:'',blurs.length>0?`<span style="color:var(--pt-muted)">left window ×${blurs.length}</span>`:'',wordDrops.length>0?`<span style="color:var(--pt-muted)">word drop</span>`:''].filter(Boolean).join(' &nbsp;');
     return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td></tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events</th><th>Time Away</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -1888,12 +2045,12 @@ function renderDetailRow(sub) {
   const log=sub.process_log||[];
   const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
   const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
-  const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`window left focus ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
+  const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
   return `<tr class="detail-row"><td class="detail-cell" colspan="7"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm)"><div class="disclaimer">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div></div></td></tr>`;
 }
 
 function labelForEvent(type) {
-  const l={paste:'Paste event',window_blur:'Window left focus',tab_hidden:'Window left focus',window_focus:'Window returned',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste'};
+  const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste'};
   return l[type]||type.replace(/_/g,' ');
 }
 function getLogDetail(entry) {
