@@ -1030,20 +1030,30 @@ function renderAssignmentList(assignments) {
     const className = a.class_id ? ((STATE._classes||[]).find(c=>c.id===a.class_id)?.name||'') : '';
     const classPart = className ? ` · ${esc(className)}` : '';
     const sessionActions = a.archived ? '' : isActive
-      ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="pauseSession('${a.id}','${sessionId}')">Pause</button>
-         <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End</button>`
+      ?`<div class="assignment-actions-row assignment-actions-primary">
+          <button class="btn btn-ghost" onclick="pauseSession('${a.id}','${sessionId}')">⏸ Pause</button>
+          <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
+        </div>`
       :isPaused
-        ?`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="reopenSession('${a.id}','${sessionId}')">Reopen</button>
-           <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End</button>`
-        :`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="openSession('${a.id}')">Open Session</button>
-           <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>`;
+        ?`<div class="assignment-actions-row assignment-actions-primary">
+            <button class="btn btn-success" onclick="reopenSession('${a.id}','${sessionId}')">▶ Reopen</button>
+            <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
+          </div>`
+        :`<div class="assignment-actions-row assignment-actions-primary">
+            <button class="btn btn-success" onclick="openSession('${a.id}')">Open Session</button>
+            <button class="btn btn-danger" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>
+          </div>`;
     const editPreviewActions = a.archived
-      ?`<button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();unarchiveAssignment('${a.id}')">↩ Unarchive</button>
-         <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Copy to New</button>`
-      :`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();editAssignment('${a.id}')">Edit</button>
-         <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
-         <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate</button>
-         <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem;color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>`;
+      ?`<div class="assignment-actions-row assignment-actions-secondary">
+          <button class="btn btn-secondary" onclick="event.stopPropagation();unarchiveAssignment('${a.id}')">↩ Unarchive</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Copy to New</button>
+        </div>`
+      :`<div class="assignment-actions-row assignment-actions-secondary">
+          <button class="btn btn-ghost" onclick="event.stopPropagation();editAssignment('${a.id}')">Edit</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate</button>
+          <button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>
+        </div>`;
     return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
       <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
@@ -1501,12 +1511,13 @@ function renderSourcePanel() {
   const textarea = document.getElementById('essay-textarea');
 
   if (!sources.length || !['document_based','source_analysis'].includes(promptType)) {
-    container.style.display = 'none';
+    container.classList.remove('active');
+    container.style.display = '';
     defaultMain.style.display = 'flex';
     return;
   }
 
-  container.style.display = 'block';
+  container.classList.add('active');
 
   if (promptType === 'document_based') {
     // Split layout: source pane left, resize handle, essay pane right
