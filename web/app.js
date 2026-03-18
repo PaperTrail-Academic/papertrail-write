@@ -80,24 +80,29 @@ function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
 // Shows appropriate toast/modal on block.
 async function checkPlanLimit(resource, teacherId) {
   try {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session?.access_token) {
-      console.warn('checkPlanLimit: no active session, skipping limit check');
+    // Get the session token — try getSession first, fall back to getUser
+    const { data: sessionData } = await db.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      console.warn('checkPlanLimit: no access token found, failing open');
       return false;
     }
+    console.log('checkPlanLimit: calling with token prefix', token.slice(0, 20) + '...');
     const resp = await fetch(
       `${SUPABASE_URL}/functions/v1/check-plan-limits`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
+          'apikey': SUPABASE_ANON,
         },
         body: JSON.stringify({ resource, teacher_id: teacherId }),
       }
     );
     const result = await resp.json();
-    if (result.ok) return false; // allowed
+    console.log('checkPlanLimit result:', result);
+    if (result.ok) return false;
     const msg = result.message || 'Plan limit reached.';
     openModal(`<div class="modal-header"><h3>Plan limit reached</h3><button class="modal-close" onclick="closeModal()">×</button></div>
       <div class="modal-body">${esc(msg)}</div>
@@ -105,9 +110,8 @@ async function checkPlanLimit(resource, teacherId) {
         <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
         <button class="btn btn-primary" onclick="closeModal()">Upgrade — coming soon</button>
       </div>`);
-    return true; // blocked
+    return true;
   } catch(err) {
-    // Fail open so development isn't blocked if Edge Function is unreachable
     console.warn('check-plan-limits unreachable, failing open:', err.message);
     return false;
   }
