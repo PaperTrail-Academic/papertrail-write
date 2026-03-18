@@ -266,24 +266,30 @@ async function studentLoginStep() {
     btn.disabled = true; btn.textContent = 'Checking…';
     statusEl.className = 'status-msg'; statusEl.textContent = '';
     try {
-      const {data:sessions} = await db.from('sessions').select('assignment_id').eq('join_code', joinCode).eq('status', 'active');
+      // Validate code
+      const {data:sessions, error:sErr} = await db.from('sessions').select('assignment_id').eq('join_code', joinCode).eq('status', 'active');
+      if (sErr) throw sErr;
       if (!sessions?.length) {
         statusEl.className = 'status-msg error';
         statusEl.textContent = 'No active session found with that join code. Ask your teacher to check.';
         btn.disabled = false; btn.textContent = 'Continue →';
         return;
       }
-      // Code is valid — fetch roster to swap name field if needed
-      await prefetchRosterForCode();
+
+      // Try to fetch class roster using the assignment from the validated session
+      const assignmentId = sessions[0].assignment_id;
+      await prefetchRosterForCode(assignmentId);
+
       nameSection.style.display = 'block';
       STATE._joinCodeValidated = true;
+      btn.disabled = false;
       btn.textContent = 'Join Session →';
-      // Focus the name field
       setTimeout(() => document.getElementById('s-name')?.focus(), 50);
     } catch(err) {
       statusEl.className = 'status-msg error';
       statusEl.textContent = 'Something went wrong: ' + err.message;
-    } finally { btn.disabled = false; }
+      btn.disabled = false; btn.textContent = 'Continue →';
+    }
     return;
   }
 
@@ -291,31 +297,29 @@ async function studentLoginStep() {
   studentLogin();
 }
 
-// Called after code validation — fetches roster and swaps name field to dropdown if available
-async function prefetchRosterForCode() {
-  const joinCode = document.getElementById('s-password')?.value.trim().toUpperCase();
+// Fetches roster for a known assignmentId and swaps name field to dropdown if available
+async function prefetchRosterForCode(assignmentId) {
   const nameGroup = document.getElementById('s-name-group');
-  if (!joinCode || joinCode.length < 4) return;
-
+  if (!nameGroup) return;
   try {
-    const {data:sessions} = await db.from('sessions').select('assignment_id').eq('join_code',joinCode).eq('status','active');
-    if (!sessions?.length) return;
-
-    const {data:asgn} = await db.from('assignments').select('class_id').eq('id',sessions[0].assignment_id).single();
+    const {data:asgn} = await db.from('assignments').select('class_id').eq('id', assignmentId).single();
     if (!asgn?.class_id) return;
 
-    const {data:cls} = await db.from('classes').select('student_roster').eq('id',asgn.class_id).single();
-    const roster = cls?.student_roster||[];
+    const {data:cls} = await db.from('classes').select('student_roster').eq('id', asgn.class_id).single();
+    const roster = cls?.student_roster || [];
     if (!roster.length) return;
 
-    const names = roster.map(s => typeof s==='string' ? s : s.name).sort();
+    const names = roster.map(s => typeof s === 'string' ? s : s.name).filter(Boolean).sort();
+    if (!names.length) return;
+
     nameGroup.innerHTML = `<label>Your Name</label>
       <select class="form-input form-select" id="s-name">
         <option value="">— Select your name —</option>
-        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+        ${names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
       </select>
       <div class="form-hint">Don't see your name? Ask your teacher.</div>`;
   } catch(e) {
+    console.warn('prefetchRoster failed:', e.message);
     // Silently fail — student can still type their name
   }
 }
@@ -1512,7 +1516,6 @@ function renderSourcePanel() {
 
   if (!sources.length || !['document_based','source_analysis'].includes(promptType)) {
     container.classList.remove('active');
-    container.style.display = '';
     defaultMain.style.display = 'flex';
     return;
   }
