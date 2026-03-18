@@ -15,11 +15,14 @@ const STATE = {
   pendingBurstChars: 0, burstCheckInterval: null,
   _visibilityHandler: null, _blurHandler: null, _focusHandler: null,
   selectedAssignmentId: null, allSubmissions: [], expandedSubId: null,
-  realtimeChannel: null,  // Supabase Realtime channel for live session view
+  realtimeChannel: null,
   pauseCountdownInterval: null,
-  isPreview: false,  // Teacher preview mode
-  editingAssignmentId: null,  // For editing an existing assignment
-  selectedPromptType: 'timed_essay',  // Current selection in assignment form
+  isPreview: false,
+  editingAssignmentId: null,
+  selectedPromptType: 'timed_essay',
+  // Sources
+  formSources: [],         // [{id, label, type, text_content, storage_path, storage_url, _file, _uploading}] in teacher form
+  studentSources: [],      // Loaded at join time for student rendering
 };
 
 // ── BOOT ──
@@ -222,6 +225,8 @@ async function studentLogin() {
       STATE.studentName=name; STATE.period=period; STATE.startedAt=now;
       STATE.processLog=[]; STATE.isSubmitted=false;
     }
+    // Load sources for this assignment (needed regardless of resume/new)
+    await loadSources(assignment.id);
     showScreen('transparency');
   } catch(err) {
     statusEl.className='status-msg error'; statusEl.textContent='Something went wrong: '+err.message;
@@ -229,12 +234,8 @@ async function studentLogin() {
 }
 
 function beginWriting() {
-  // Get saved text if resuming
-  const savedText = STATE.submissionId ? '' : '';
-  // For resume, essay_text was already loaded in STATE during studentLogin
   enterWritingMode(STATE._resumeText||'');
   STATE._resumeText = null;
-  // Subscribe to session status changes (for pause notification)
   if (STATE.sessionId && !STATE.isPreview) subscribeToSessionPause();
 }
 
@@ -242,15 +243,6 @@ function beginWriting() {
 function enterWritingMode(savedText) {
   document.getElementById('writing-title').textContent=STATE.assignmentTitle;
   document.getElementById('writing-student').textContent=STATE.period?`${STATE.studentName} · ${STATE.period}`:STATE.studentName;
-  const editor=document.getElementById('essay-textarea');
-  editor.value=savedText||''; editor.disabled=false;
-
-  // Apply spellcheck setting
-  const sc = STATE.isPreview ? false : (STATE.assignmentAllowSpellcheck || false);
-  editor.spellcheck = sc;
-  editor.setAttribute('autocorrect', sc ? 'on' : 'off');
-  editor.setAttribute('autocapitalize', sc ? 'sentences' : 'off');
-  editor.setAttribute('autocomplete', sc ? 'on' : 'off');
 
   // Render prompt panel
   const promptText = STATE.assignmentPromptText;
@@ -267,8 +259,22 @@ function enterWritingMode(savedText) {
   STATE.lastTextLength=(savedText||'').length; STATE.firstKeystrokeLogged=false;
   updateWordCountDisplay(); showScreen('writing');
 
+  // Render source panel — may replace/restructure the DOM around the textarea
+  renderSourcePanel();
+
+  // Re-acquire editor reference after potential DOM restructure by renderSourcePanel
+  const editor = document.getElementById('essay-textarea');
+  if (!editor) return;
+  editor.value = savedText || '';
+  editor.disabled = false;
+  const sc2 = STATE.isPreview ? false : (STATE.assignmentAllowSpellcheck || false);
+  editor.spellcheck = sc2;
+  editor.setAttribute('autocorrect', sc2 ? 'on' : 'off');
+  editor.setAttribute('autocapitalize', sc2 ? 'sentences' : 'off');
+  editor.setAttribute('autocomplete', sc2 ? 'on' : 'off');
+  STATE.lastTextLength = (savedText||'').length;
+
   if (STATE.isPreview) {
-    // Preview mode: no timer, no autosave, no signals, textarea read-only
     document.getElementById('timer-display').textContent = STATE.timeLimitSeconds ? formatElapsed(STATE.timeLimitSeconds) : '∞';
     document.getElementById('submit-btn').disabled = true;
     document.getElementById('submit-btn').title = 'Preview mode — submit disabled';
@@ -530,11 +536,14 @@ function selectPromptType(btn) {
   document.querySelectorAll('#a-prompt-type-ctrl .seg-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   STATE.selectedPromptType = btn.dataset.val;
+  const needsSources = ['document_based','source_analysis'].includes(STATE.selectedPromptType);
+  document.getElementById('a-sources-group').style.display = needsSources ? 'block' : 'none';
 }
 
 function cancelEditAssignment() {
   STATE.editingAssignmentId = null;
   STATE.selectedPromptType = 'timed_essay';
+  STATE.formSources = [];
   document.getElementById('a-title').value = '';
   document.getElementById('a-prompt').value = '';
   document.getElementById('a-password').value = '';
@@ -543,14 +552,18 @@ function cancelEditAssignment() {
   document.getElementById('a-subject').value = '';
   document.getElementById('a-spellcheck').checked = false;
   document.querySelectorAll('#a-prompt-type-ctrl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val==='timed_essay'));
+  document.getElementById('a-sources-group').style.display = 'none';
+  renderFormSources();
   document.getElementById('assignment-form-title').textContent = 'New Assignment';
   document.getElementById('create-assignment-btn').textContent = 'Create Assignment';
   document.getElementById('cancel-edit-btn').style.display = 'none';
 }
 
-function loadAssignmentIntoForm(a) {
+function loadAssignmentIntoForm(a, sources=[]) {
   STATE.editingAssignmentId = a.id;
   STATE.selectedPromptType = a.prompt_type || 'timed_essay';
+  // Populate formSources from DB rows
+  STATE.formSources = sources.map(s => ({...s, _file: null, _uploading: false}));
   document.getElementById('a-title').value = a.title || '';
   document.getElementById('a-prompt').value = a.prompt_text || '';
   document.getElementById('a-password').value = a.join_code || '';
@@ -559,6 +572,9 @@ function loadAssignmentIntoForm(a) {
   document.getElementById('a-subject').value = a.subject || '';
   document.getElementById('a-spellcheck').checked = a.allow_spellcheck || false;
   document.querySelectorAll('#a-prompt-type-ctrl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val===STATE.selectedPromptType));
+  const needsSources = ['document_based','source_analysis'].includes(STATE.selectedPromptType);
+  document.getElementById('a-sources-group').style.display = needsSources ? 'block' : 'none';
+  renderFormSources();
   document.getElementById('assignment-form-title').textContent = 'Edit Assignment';
   document.getElementById('create-assignment-btn').textContent = 'Save Changes';
   document.getElementById('cancel-edit-btn').style.display = 'block';
@@ -590,19 +606,399 @@ async function createAssignment() {
     grade_level:gradeLevel, subject,
   };
   try {
-    if(STATE.editingAssignmentId) {
-      const {error}=await db.from('assignments').update(payload).eq('id',STATE.editingAssignmentId);
+    let assignmentId = STATE.editingAssignmentId;
+    if(assignmentId) {
+      const {error}=await db.from('assignments').update(payload).eq('id',assignmentId);
       if(error) throw error;
       toast(`"${title}" updated`,'success');
     } else {
-      const {error}=await db.from('assignments').insert(payload);
+      const {data:newA,error}=await db.from('assignments').insert(payload).select().single();
       if(error) throw error;
+      assignmentId = newA.id;
       toast(`"${title}" created`,'success');
     }
+    // Save sources (upload pending files, sync rows)
+    await saveSourcesForAssignment(assignmentId, user.id);
     cancelEditAssignment();
     loadDashboard();
   } catch(err){toast('Save failed: '+err.message,'error');}
   finally{btn.disabled=false;}
+}
+
+// ── SOURCES — TEACHER FORM ──
+
+function renderFormSources() {
+  const list = document.getElementById('a-sources-list');
+  if (!list) return;
+  const countEl = document.getElementById('a-source-count');
+  const addBtn = document.getElementById('a-add-source-btn');
+  if (countEl) countEl.textContent = STATE.formSources.length;
+  if (addBtn) addBtn.disabled = STATE.formSources.length >= 8;
+
+  if (!STATE.formSources.length) {
+    list.innerHTML = '<div style="padding:0.75rem 1rem;font-size:var(--text-xs);color:var(--pt-muted)">No sources yet. Click "+ Add Source" to add one.</div>';
+    return;
+  }
+
+  list.innerHTML = STATE.formSources.map((src, idx) => {
+    const typeLabels = {text:'Plain Text', pdf:'PDF', image:'Image', docx:'Word Doc'};
+    const typeTabs = ['text','pdf','image','docx'].map(t =>
+      `<button class="source-type-tab ${src.type===t?'active':''}" onclick="selectSourceType(${idx},'${t}')">${typeLabels[t]}</button>`
+    ).join('');
+
+    let bodyHtml = '';
+    if (src.type === 'text') {
+      bodyHtml = `<textarea class="source-text-input" placeholder="Paste or type source text…" oninput="STATE.formSources[${idx}].text_content=this.value">${esc(src.text_content||'')}</textarea>`;
+    } else {
+      const accept = src.type==='pdf' ? '.pdf' : src.type==='image' ? '.jpg,.jpeg,.png,.webp,.gif' : '.docx';
+      const hasFile = src.storage_path || src._file;
+      const fileName = src._file ? src._file.name : (src.storage_path ? src.storage_path.split('/').pop() : '');
+      const fileSize = src._file ? formatBytes(src._file.size) : '';
+      bodyHtml = `
+        <div class="source-drop-zone ${src._uploading?'drag-over':''}" id="drop-zone-${idx}"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="event.preventDefault();this.classList.remove('drag-over');handleSourceFileSelect(${idx},event.dataTransfer.files[0])">
+          <input type="file" accept="${accept}" onchange="handleSourceFileSelect(${idx},this.files[0])">
+          <div class="source-drop-zone-label">
+            ${src._uploading
+              ? '<span style="color:var(--pt-write)">Uploading…</span>'
+              : '<strong>Choose file</strong> or drag and drop here'}
+          </div>
+        </div>
+        ${hasFile ? `<div class="source-file-pill">
+          <span class="source-file-pill-name">${esc(fileName)}</span>
+          ${fileSize ? `<span class="source-file-pill-size">${fileSize}</span>` : ''}
+          <button class="source-file-remove" onclick="clearSourceFile(${idx})" title="Remove file">✕</button>
+        </div>` : ''}`;
+    }
+
+    return `<div class="source-card" id="source-card-${idx}">
+      <div class="source-card-header">
+        <span class="source-drag-handle">⠿</span>
+        <input class="source-label-input" type="text" value="${esc(src.label||'')}"
+          placeholder="Label (e.g. Document A)"
+          oninput="STATE.formSources[${idx}].label=this.value">
+        <button class="source-remove-btn" onclick="removeSource(${idx})" title="Remove source">✕</button>
+      </div>
+      <div class="source-type-tabs">${typeTabs}</div>
+      <div class="source-body">${bodyHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function addSource() {
+  if (STATE.formSources.length >= 8) return;
+  const n = STATE.formSources.length + 1;
+  STATE.formSources.push({
+    id: null, label: `Source ${n}`, type: 'text',
+    text_content: '', storage_path: null, storage_url: null,
+    _file: null, _uploading: false,
+  });
+  renderFormSources();
+}
+
+function removeSource(idx) {
+  const src = STATE.formSources[idx];
+  // Mark for deletion if it has a DB id; otherwise just splice
+  if (src.id) src._deleted = true;
+  STATE.formSources.splice(idx, 1);
+  renderFormSources();
+}
+
+function selectSourceType(idx, type) {
+  STATE.formSources[idx].type = type;
+  STATE.formSources[idx]._file = null;
+  renderFormSources();
+}
+
+function handleSourceFileSelect(idx, file) {
+  if (!file) return;
+  const src = STATE.formSources[idx];
+  const maxBytes = 20 * 1024 * 1024; // 20MB
+  if (file.size > maxBytes) { toast('File must be under 20MB','warning'); return; }
+  src._file = file;
+  src.storage_path = null; // will be set after upload
+  renderFormSources();
+}
+
+function clearSourceFile(idx) {
+  STATE.formSources[idx]._file = null;
+  STATE.formSources[idx].storage_path = null;
+  STATE.formSources[idx].storage_url = null;
+  renderFormSources();
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+async function saveSourcesForAssignment(assignmentId, teacherId) {
+  // 1. Delete removed sources (those that had a DB id but were removed from the form)
+  // Already spliced out — we track deletions by comparing to what's in DB
+  // Simpler: delete all existing source rows for this assignment, re-insert current set
+  // BUT we need to avoid re-uploading files that are already in Storage.
+  // Strategy: delete only rows whose ids are NOT in the current formSources list.
+  const existingIds = STATE.formSources.filter(s => s.id).map(s => s.id);
+
+  // Delete sources that were removed (not in existingIds)
+  if (STATE.editingAssignmentId) {
+    const {data: dbSources} = await db.from('sources').select('id').eq('assignment_id', assignmentId);
+    const toDelete = (dbSources||[]).filter(s => !existingIds.includes(s.id)).map(s => s.id);
+    if (toDelete.length) {
+      await db.from('sources').delete().in('id', toDelete);
+    }
+  }
+
+  // 2. Upload new files and upsert each source row
+  for (let i = 0; i < STATE.formSources.length; i++) {
+    const src = STATE.formSources[i];
+    let storagePath = src.storage_path;
+
+    // Upload file if one was selected
+    if (src._file) {
+      src._uploading = true;
+      renderFormSources();
+      const ext = src._file.name.split('.').pop().toLowerCase();
+      const path = `${teacherId}/${assignmentId}/${Date.now()}-${i}.${ext}`;
+      const { error: upErr } = await db.storage
+        .from('assignment-sources')
+        .upload(path, src._file, { upsert: true, contentType: src._file.type });
+      if (upErr) { toast(`Source ${i+1} upload failed: ${upErr.message}`, 'error'); src._uploading = false; continue; }
+      storagePath = path;
+      src.storage_path = path;
+      src._file = null;
+      src._uploading = false;
+    }
+
+    const row = {
+      assignment_id: assignmentId,
+      teacher_id: teacherId,
+      source_type: src.type,
+      label: src.label || `Source ${i+1}`,
+      sort_order: i,
+      text_content: src.type === 'text' ? (src.text_content||'') : null,
+      storage_path: storagePath || null,
+    };
+
+    if (src.id) {
+      await db.from('sources').update(row).eq('id', src.id);
+    } else {
+      const { data: newRow } = await db.from('sources').insert(row).select().single();
+      if (newRow) src.id = newRow.id;
+    }
+  }
+  renderFormSources();
+}
+
+// ── SOURCES — STUDENT SIDE ──
+
+async function loadSources(assignmentId) {
+  STATE.studentSources = [];
+  try {
+    const { data: sources, error } = await db.from('sources')
+      .select('*')
+      .eq('assignment_id', assignmentId)
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    if (!sources || !sources.length) return;
+
+    // Generate fresh signed URLs for file-based sources
+    for (const src of sources) {
+      if (src.storage_path) {
+        const { data: urlData } = await db.storage
+          .from('assignment-sources')
+          .createSignedUrl(src.storage_path, 3600); // 1-hour expiry
+        src.storage_url = urlData?.signedUrl || null;
+      }
+    }
+    STATE.studentSources = sources;
+  } catch(err) {
+    console.error('Failed to load sources:', err);
+  }
+}
+
+function renderSourcePanel() {
+  const sources = STATE.studentSources;
+  const promptType = STATE.assignmentPromptType;
+  const container = document.getElementById('source-panel-container');
+  const defaultMain = document.getElementById('writing-main-default');
+  const textarea = document.getElementById('essay-textarea');
+
+  if (!sources.length || !['document_based','source_analysis'].includes(promptType)) {
+    container.style.display = 'none';
+    defaultMain.style.display = 'flex';
+    return;
+  }
+
+  container.style.display = 'block';
+
+  if (promptType === 'document_based') {
+    // Split layout: source pane left, essay pane right
+    defaultMain.style.display = 'none';
+    container.innerHTML = `
+      <div class="writing-split">
+        <div class="source-pane">
+          <div class="source-pane-header">
+            <span class="source-pane-title">Source Materials</span>
+            <span style="font-size:var(--text-xs);color:rgba(255,255,255,0.35)">${sources.length} source${sources.length!==1?'s':''}</span>
+          </div>
+          <div class="source-pane-body" id="source-pane-body"></div>
+        </div>
+        <div class="essay-pane">
+          <textarea id="essay-textarea" placeholder="Begin writing here…"
+            spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
+        </div>
+      </div>`;
+
+    // Render sources into pane body
+    const paneBody = document.getElementById('source-pane-body');
+    sources.forEach((src, i) => {
+      const wrap = document.createElement('div');
+      if (i > 0) wrap.style.borderTop = '1px solid var(--pt-border)';
+      if (src.label) {
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'font-size:var(--text-xs);font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--pt-muted);padding:0.5rem 0 0.25rem';
+        lbl.textContent = src.label;
+        wrap.appendChild(lbl);
+      }
+      renderSourceContent(src, wrap);
+      paneBody.appendChild(wrap);
+    });
+    disableSourcePaneRightClick(paneBody);
+
+  } else {
+    // Source Analysis: tabbed layout above textarea
+    defaultMain.style.display = 'flex';
+    const tabs = sources.map((src, i) =>
+      `<button class="source-tab-btn ${i===0?'active':''}" onclick="switchSourceTab(${i})">${esc(src.label||`Source ${i+1}`)}</button>`
+    ).join('');
+    const panels = sources.map((src, i) =>
+      `<div class="source-tab-panel ${i===0?'active':''}" id="source-tab-panel-${i}"></div>`
+    ).join('');
+
+    container.innerHTML = `
+      <div style="max-width:1000px;width:100%;margin:0 auto;padding:0 var(--space-lg)">
+        <div class="source-tabs-wrap">
+          <div class="source-tabs-bar">${tabs}</div>
+          <div id="source-tabs-content">${panels}</div>
+        </div>
+      </div>`;
+
+    // Render content into each panel
+    sources.forEach((src, i) => {
+      const panel = document.getElementById(`source-tab-panel-${i}`);
+      if (panel) renderSourceContent(src, panel);
+    });
+    disableSourcePaneRightClick(document.getElementById('source-tabs-content'));
+  }
+
+  // Move the textarea into the essay pane if split layout
+  if (promptType === 'document_based') {
+    const essayTA = document.getElementById('essay-textarea');
+    if (essayTA) {
+      const sc = STATE.assignmentAllowSpellcheck;
+      essayTA.spellcheck = sc;
+      essayTA.setAttribute('autocorrect', sc ? 'on' : 'off');
+      essayTA.setAttribute('autocapitalize', sc ? 'sentences' : 'off');
+      essayTA.setAttribute('autocomplete', sc ? 'on' : 'off');
+    }
+  }
+}
+
+function switchSourceTab(idx) {
+  document.querySelectorAll('.source-tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  document.querySelectorAll('.source-tab-panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+}
+
+function disableSourcePaneRightClick(el) {
+  if (!el) return;
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+async function renderSourceContent(src, container) {
+  if (src.source_type === 'text') {
+    const div = document.createElement('div');
+    div.className = 'source-rendered-text';
+    div.textContent = src.text_content || '';
+    container.appendChild(div);
+
+  } else if (src.source_type === 'image') {
+    if (!src.storage_url) { container.innerHTML += '<p style="color:var(--pt-muted);font-size:var(--text-sm)">Image unavailable.</p>'; return; }
+    const img = document.createElement('img');
+    img.src = src.storage_url;
+    img.alt = src.label || 'Source image';
+    img.style.maxWidth = '100%';
+    container.appendChild(img);
+
+  } else if (src.source_type === 'pdf') {
+    if (!src.storage_url) { container.innerHTML += '<p style="color:var(--pt-muted);font-size:var(--text-sm)">PDF unavailable.</p>'; return; }
+    await renderPdfSource(src.storage_url, container);
+
+  } else if (src.source_type === 'docx') {
+    if (!src.storage_url) { container.innerHTML += '<p style="color:var(--pt-muted);font-size:var(--text-sm)">Document unavailable.</p>'; return; }
+    await renderDocxSource(src.storage_url, container);
+  }
+}
+
+async function renderPdfSource(url, container) {
+  // Try PDF.js first; fall back to <iframe> if unavailable
+  if (typeof pdfjsLib === 'undefined') {
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    iframe.style.cssText = 'width:100%;height:500px;border:none;border-radius:4px';
+    container.appendChild(iframe);
+    return;
+  }
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const loadingMsg = document.createElement('div');
+    loadingMsg.style.cssText = 'font-size:var(--text-xs);color:var(--pt-muted);padding:0.5rem 0';
+    loadingMsg.textContent = 'Loading PDF…';
+    container.appendChild(loadingMsg);
+
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    loadingMsg.remove();
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.4 });
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'width:100%;border-radius:4px;margin-bottom:8px;display:block';
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      container.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    }
+  } catch(err) {
+    container.innerHTML += `<p style="color:var(--pt-muted);font-size:var(--text-sm)">Could not render PDF. <a href="${url}" target="_blank" style="color:var(--pt-write)">Open in new tab</a></p>`;
+  }
+}
+
+async function renderDocxSource(url, container) {
+  if (typeof mammoth === 'undefined') {
+    container.innerHTML += `<p style="color:var(--pt-muted);font-size:var(--text-sm)">Document renderer unavailable. <a href="${url}" target="_blank" style="color:var(--pt-write)">Download</a></p>`;
+    return;
+  }
+  try {
+    const loadingMsg = document.createElement('div');
+    loadingMsg.style.cssText = 'font-size:var(--text-xs);color:var(--pt-muted);padding:0.5rem 0';
+    loadingMsg.textContent = 'Loading document…';
+    container.appendChild(loadingMsg);
+
+    const resp = await fetch(url);
+    const arrayBuffer = await resp.arrayBuffer();
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    loadingMsg.remove();
+    const div = document.createElement('div');
+    div.className = 'source-rendered-html';
+    div.innerHTML = result.value;
+    container.appendChild(div);
+  } catch(err) {
+    container.innerHTML += `<p style="color:var(--pt-muted);font-size:var(--text-sm)">Could not render document. <a href="${url}" target="_blank" style="color:var(--pt-write)">Download</a></p>`;
+  }
 }
 
 async function openSession(assignmentId) {
@@ -630,9 +1026,12 @@ async function pauseSession(assignmentId,sessionId) {
 }
 
 async function editAssignment(id) {
-  const {data:a,error}=await db.from('assignments').select('*').eq('id',id).single();
-  if(error){toast('Failed to load assignment','error');return;}
-  loadAssignmentIntoForm(a);
+  const [{data:a,error:ae},{data:sources,error:se}] = await Promise.all([
+    db.from('assignments').select('*').eq('id',id).single(),
+    db.from('sources').select('*').eq('assignment_id',id).order('sort_order',{ascending:true}),
+  ]);
+  if(ae){toast('Failed to load assignment','error');return;}
+  loadAssignmentIntoForm(a, sources||[]);
 }
 
 async function previewAssignment(id) {
@@ -651,6 +1050,7 @@ async function previewAssignment(id) {
   STATE.processLog=[];
   STATE.isSubmitted=false;
   STATE._resumeText='';
+  await loadSources(a.id);
   enterWritingMode('');
   // Show a preview notice banner
   const bar=document.querySelector('.transparency-bar');
