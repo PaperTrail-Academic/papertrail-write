@@ -244,6 +244,8 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .assignment-item:hover { border-color: var(--pt-write-l); background: var(--pt-write-pale); }
 .assignment-item.selected { border-color: var(--pt-write); background: var(--pt-write-pale); }
 .assignment-item.active-assignment { border-color: var(--success); }
+.assignment-item.archived-assignment { opacity: 0.6; }
+.assignment-item.archived-assignment .assignment-item-title { color: var(--pt-muted); }
 .assignment-item-title { font-weight: 600; font-size: var(--text-sm); color: var(--pt-ink); margin-bottom: 0.2rem; }
 .assignment-item-meta { font-size: var(--text-xs); color: var(--pt-muted); }
 .assignment-item-actions { display: flex; gap: 0.35rem; margin-top: 0.5rem; }
