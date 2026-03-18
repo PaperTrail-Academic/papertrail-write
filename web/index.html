@@ -352,7 +352,8 @@
               <label>Source Materials</label>
               <div class="sources-section">
                 <div class="sources-header">
-                  <span class="sources-header-label">Sources <span id="a-source-count">0</span> / 8</span>
+                  <span class="sources-header-label">Sources <span id="a-source-count">0 / 8</span></span>
+                  <span id="a-source-max-hint" style="font-size:var(--text-xs);color:var(--pt-muted)">Up to 8 sources</span>
                   <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.75rem" onclick="addSource()" id="a-add-source-btn">+ Add Source</button>
                 </div>
                 <div id="a-sources-list"></div>
@@ -430,7 +431,7 @@
         <h2 id="submissions-panel-title">Session Report</h2>
         <span id="realtime-badge" style="display:none" class="live-badge"><span class="live-dot"></span>Live</span>
       </div>
-      <div class="sub-toolbar">
+      <div class="sub-toolbar" id="sub-toolbar">
         <span class="sub-count" id="sub-count">Select an assignment to view its session report.</span>
         <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem" onclick="exportTSV()" id="export-btn" disabled>↓ Export Report</button>
       </div>
