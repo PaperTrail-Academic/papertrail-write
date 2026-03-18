@@ -1389,50 +1389,50 @@ function initResizeHandle() {
   const pane = document.getElementById('source-pane');
   if (!handle || !split || !pane) return;
 
+  // Use flex-basis for resizing — works correctly in flex layouts
   let dragging = false;
-  let startX, startWidth;
+  let startX, startBasis;
 
-  handle.addEventListener('mousedown', (e) => {
+  const startDrag = (clientX) => {
     dragging = true;
-    startX = e.clientX;
-    startWidth = pane.offsetWidth;
+    startX = clientX;
+    startBasis = pane.offsetWidth;
+    handle.classList.add('dragging');
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    e.preventDefault();
-  });
+    // Prevent iframe/canvas from eating mousemove events
+    const overlay = document.createElement('div');
+    overlay.id = 'resize-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;cursor:col-resize';
+    document.body.appendChild(overlay);
+  };
 
-  document.addEventListener('mousemove', (e) => {
+  const doDrag = (clientX) => {
     if (!dragging) return;
-    const delta = e.clientX - startX;
-    const newWidth = Math.min(Math.max(startWidth + delta, 200), split.offsetWidth - 300);
-    pane.style.width = newWidth + 'px';
-    pane.style.maxWidth = newWidth + 'px';
-  });
+    const delta = clientX - startX;
+    const splitWidth = split.offsetWidth;
+    const newBasis = Math.min(Math.max(startBasis + delta, 200), splitWidth - 320);
+    pane.style.flexBasis = newBasis + 'px';
+    pane.style.width = newBasis + 'px';
+    pane.style.maxWidth = 'none';
+  };
 
-  document.addEventListener('mouseup', () => {
+  const endDrag = () => {
     if (!dragging) return;
     dragging = false;
+    handle.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-  });
+    document.getElementById('resize-overlay')?.remove();
+  };
 
-  // Touch support
-  handle.addEventListener('touchstart', (e) => {
-    dragging = true;
-    startX = e.touches[0].clientX;
-    startWidth = pane.offsetWidth;
-    e.preventDefault();
-  }, {passive:false});
+  handle.addEventListener('mousedown', (e) => { startDrag(e.clientX); e.preventDefault(); });
+  document.addEventListener('mousemove', (e) => doDrag(e.clientX));
+  document.addEventListener('mouseup', endDrag);
 
-  document.addEventListener('touchmove', (e) => {
-    if (!dragging) return;
-    const delta = e.touches[0].clientX - startX;
-    const newWidth = Math.min(Math.max(startWidth + delta, 200), split.offsetWidth - 300);
-    pane.style.width = newWidth + 'px';
-    pane.style.maxWidth = newWidth + 'px';
-  }, {passive:true});
-
-  document.addEventListener('touchend', () => { dragging = false; });
+  handle.addEventListener('touchstart', (e) => { startDrag(e.touches[0].clientX); e.preventDefault(); }, {passive:false});
+  document.addEventListener('touchmove', (e) => { if(dragging) doDrag(e.touches[0].clientX); }, {passive:true});
+  document.addEventListener('touchend', endDrag);
 }
 
 async function renderSourceContent(src, container) {
