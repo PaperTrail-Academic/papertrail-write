@@ -9,161 +9,62 @@
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <style>
-    /* ── RESET & ROOT ───────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      /* PaperTrail Write brand tokens */
-      --pt-write:  #7B5EA7;
-      --pt-write-d: #5f4585;
-      --pt-write-l: #9b7dc4;
+      --pt-write:      #7B5EA7;
+      --pt-write-d:    #5f4585;
+      --pt-write-l:    #9b7dc4;
       --pt-write-pale: #f3effb;
-      --pt-ink:    #1a2235;
-      --pt-light:  #f5f7fa;
-      --pt-border: #dde2ec;
-      --pt-muted:  #6b7a99;
-      --pt-surface: #ffffff;
-
-      /* Functional */
-      --danger:  #c0392b;
-      --success: #27794e;
-      --warning: #a07800;
-
-      /* Geometry */
-      --radius-sm:  4px;
-      --radius-md:  8px;
-      --radius-lg:  12px;
-      --radius-xl:  16px;
-
-      /* Spacing */
-      --space-xs:  4px;
-      --space-sm:  8px;
-      --space-md:  16px;
-      --space-lg:  24px;
-      --space-xl:  40px;
-
-      /* Type scale */
-      --text-xs:   0.75rem;
-      --text-sm:   0.875rem;
-      --text-base: 1rem;
-      --text-lg:   1.125rem;
-      --text-xl:   1.25rem;
-      --text-2xl:  1.5rem;
-      --text-3xl:  1.875rem;
-      --text-4xl:  2.25rem;
-
-      /* Shadows */
-      --shadow-card:  0 2px 12px rgba(26, 34, 53, 0.08);
-      --shadow-modal: 0 8px 32px rgba(26, 34, 53, 0.16);
-
+      --pt-ink:        #1a2235;
+      --pt-light:      #f5f7fa;
+      --pt-border:     #dde2ec;
+      --pt-muted:      #6b7a99;
+      --pt-surface:    #ffffff;
+      --danger:        #c0392b;
+      --success:       #27794e;
+      --warning:       #a07800;
+      --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px;
+      --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem;
+      --text-lg: 1.125rem; --text-xl: 1.25rem; --text-2xl: 1.5rem;
+      --text-3xl: 1.875rem; --text-4xl: 2.25rem;
+      --shadow-card: 0 2px 12px rgba(26,34,53,0.08);
+      --shadow-modal: 0 8px 32px rgba(26,34,53,0.16);
       --t: 160ms ease;
     }
 
     html { font-size: 15px; }
-    body {
-      font-family: 'DM Sans', system-ui, sans-serif;
-      background: var(--pt-light);
-      color: var(--pt-ink);
-      min-height: 100vh;
-    }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light); color: var(--pt-ink); min-height: 100vh; }
 
-    /* ── SCREEN ROUTER ──────────────────────────────── */
     .screen { display: none; }
     .screen.active { display: flex; flex-direction: column; min-height: 100vh; }
 
-    /* ── CARD ───────────────────────────────────────── */
+    /* ── CARD ── */
     .card {
-      background: var(--pt-surface);
-      border: 1px solid var(--pt-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      padding: var(--space-lg);
-      width: 100%;
-      max-width: 460px;
+      background: var(--pt-surface); border: 1px solid var(--pt-border);
+      border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+      padding: var(--space-lg); width: 100%; max-width: 460px;
       animation: fadeUp 0.4s ease both;
     }
-    .card-title {
-      font-family: 'Lora', Georgia, serif;
-      font-size: var(--text-2xl);
-      font-weight: 600;
-      color: var(--pt-ink);
-      margin-bottom: 0.3rem;
-    }
-    .card-subtitle {
-      font-size: var(--text-sm);
-      color: var(--pt-muted);
-      margin-bottom: var(--space-lg);
-      line-height: 1.6;
-    }
+    .card-title { font-family: 'Lora', serif; font-size: var(--text-2xl); font-weight: 600; color: var(--pt-ink); margin-bottom: 0.3rem; }
+    .card-subtitle { font-size: var(--text-sm); color: var(--pt-muted); margin-bottom: var(--space-lg); line-height: 1.6; }
 
-    /* ── FORM ELEMENTS ──────────────────────────────── */
+    /* ── FORMS ── */
     .form-group { margin-bottom: var(--space-md); }
-    .form-group label {
-      display: block;
-      font-size: var(--text-xs);
-      font-weight: 600;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      color: var(--pt-muted);
-      margin-bottom: 0.35rem;
-    }
-    .form-input, .form-select {
-      width: 100%;
-      padding: 0.6rem 0.9rem;
-      border: 1.5px solid var(--pt-border);
-      border-radius: var(--radius-md);
-      font-family: 'DM Sans', sans-serif;
-      font-size: var(--text-sm);
-      color: var(--pt-ink);
-      background: var(--pt-surface);
-      transition: border-color var(--t), box-shadow var(--t);
-    }
-    .form-input:focus, .form-select:focus {
-      outline: none;
-      border-color: var(--pt-write);
-      box-shadow: 0 0 0 3px rgba(123, 94, 167, 0.12);
-    }
-    .form-hint {
-      font-size: var(--text-xs);
-      color: var(--pt-muted);
-      margin-top: 0.3rem;
-    }
+    .form-group label { display: block; font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--pt-muted); margin-bottom: 0.35rem; }
+    .form-input, .form-select { width: 100%; padding: 0.6rem 0.9rem; border: 1.5px solid var(--pt-border); border-radius: var(--radius-md); font-family: 'DM Sans', sans-serif; font-size: var(--text-sm); color: var(--pt-ink); background: var(--pt-surface); transition: border-color var(--t), box-shadow var(--t); }
+    .form-input:focus, .form-select:focus { outline: none; border-color: var(--pt-write); box-shadow: 0 0 0 3px rgba(123,94,167,0.12); }
+    .form-hint { font-size: var(--text-xs); color: var(--pt-muted); margin-top: 0.3rem; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 
-    /* ── BUTTONS ────────────────────────────────────── */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.45rem;
-      padding: 0.65rem 1.25rem;
-      border-radius: var(--radius-md);
-      font-family: 'DM Sans', sans-serif;
-      font-size: var(--text-sm);
-      font-weight: 600;
-      cursor: pointer;
-      border: 1.5px solid transparent;
-      transition: all var(--t);
-      text-decoration: none;
-      line-height: 1;
-    }
-    .btn-primary {
-      background: var(--pt-write);
-      color: #fff;
-      border-color: var(--pt-write);
-    }
+    /* ── BUTTONS ── */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.65rem 1.25rem; border-radius: var(--radius-md); font-family: 'DM Sans', sans-serif; font-size: var(--text-sm); font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: all var(--t); text-decoration: none; line-height: 1; }
+    .btn-primary { background: var(--pt-write); color: #fff; border-color: var(--pt-write); }
     .btn-primary:hover { background: var(--pt-write-d); border-color: var(--pt-write-d); }
-    .btn-secondary {
-      background: transparent;
-      color: var(--pt-write);
-      border-color: var(--pt-write);
-    }
+    .btn-secondary { background: transparent; color: var(--pt-write); border-color: var(--pt-write); }
     .btn-secondary:hover { background: var(--pt-write-pale); }
-    .btn-ghost {
-      background: transparent;
-      color: var(--pt-muted);
-      border-color: var(--pt-border);
-    }
+    .btn-ghost { background: transparent; color: var(--pt-muted); border-color: var(--pt-border); }
     .btn-ghost:hover { background: var(--pt-light); color: var(--pt-ink); border-color: var(--pt-muted); }
     .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
     .btn-danger:hover { background: #a93226; }
@@ -172,904 +73,212 @@
     .btn-block { width: 100%; }
     .btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 
-    /* ── STATUS MESSAGES ────────────────────────────── */
-    .status-msg {
-      font-size: var(--text-xs);
-      padding: 0.6rem 0.9rem;
-      border-radius: var(--radius-md);
-      margin-top: 0.75rem;
-      display: none;
-      line-height: 1.5;
-    }
+    .text-link { color: var(--pt-write); cursor: pointer; font-size: var(--text-sm); text-decoration: underline; background: none; border: none; padding: 0; font-family: 'DM Sans', sans-serif; }
+    .text-link:hover { color: var(--pt-write-d); }
+
+    /* ── STATUS ── */
+    .status-msg { font-size: var(--text-xs); padding: 0.6rem 0.9rem; border-radius: var(--radius-md); margin-top: 0.75rem; display: none; line-height: 1.5; }
     .status-msg.error   { background: #fdecea; border: 1px solid #f5b7b1; color: var(--danger); display: block; }
     .status-msg.success { background: #eaf5ef; border: 1px solid #a9d9be; color: var(--success); display: block; }
     .status-msg.info    { background: var(--pt-write-pale); border: 1px solid rgba(123,94,167,0.25); color: var(--pt-write-d); display: block; }
 
-    /* ── DISCLAIMER BLOCK ───────────────────────────── */
-    .disclaimer {
-      background: var(--pt-light);
-      border-left: 3px solid var(--pt-muted);
-      border-radius: 0 var(--radius-md) var(--radius-md) 0;
-      padding: var(--space-sm) var(--space-md);
-      font-size: var(--text-sm);
-      color: var(--pt-muted);
-      font-family: 'DM Sans', sans-serif;
-      line-height: 1.6;
-    }
-
-    /* ── DIVIDER ────────────────────────────────────── */
+    .disclaimer { background: var(--pt-light); border-left: 3px solid var(--pt-muted); border-radius: 0 var(--radius-md) var(--radius-md) 0; padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); color: var(--pt-muted); line-height: 1.6; }
     .divider { border: none; border-top: 1px solid var(--pt-border); margin: var(--space-lg) 0; }
 
-    /* ── ANIMATIONS ─────────────────────────────────── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes slideIn {
-      from { transform: translateX(100%); opacity: 0; }
-      to   { transform: translateX(0);   opacity: 1; }
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-    /* ════════════════════════════════════════════════
-       SCREEN 0: LANDING
-       ════════════════════════════════════════════════ */
-    #screen-landing {
-      align-items: center;
-      justify-content: center;
-      background: var(--pt-ink);
-      position: relative;
-      overflow: hidden;
-    }
-    #screen-landing::before {
-      content: '';
-      position: absolute; inset: 0;
-      background:
-        radial-gradient(ellipse 70% 70% at 80% 20%, rgba(123,94,167,0.25) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 50% at 15% 85%, rgba(123,94,167,0.12) 0%, transparent 50%);
-      pointer-events: none;
-    }
-    .landing-grid {
-      position: absolute; inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
-      background-size: 52px 52px;
-      pointer-events: none;
-    }
-    .landing-inner {
-      position: relative; z-index: 1;
-      text-align: center;
-      padding: 2rem 1.5rem;
-      animation: fadeUp 0.5s ease both;
-    }
-    .landing-wordmark {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.6rem;
-      margin-bottom: 2rem;
-    }
-    .landing-wordmark-icon {
-      width: 36px; height: 36px;
-      background: var(--pt-write);
-      border-radius: var(--radius-md);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.1rem;
-    }
-    .landing-wordmark-text {
-      font-family: 'Lora', serif;
-      font-size: var(--text-lg);
-      font-weight: 600;
-      color: rgba(255,255,255,0.9);
-      letter-spacing: -0.01em;
-    }
-    .landing-wordmark-text em {
-      font-style: italic;
-      color: var(--pt-write-l);
-    }
-    .landing-title {
-      font-family: 'Lora', Georgia, serif;
-      font-size: clamp(var(--text-3xl), 5vw, var(--text-4xl));
-      font-weight: 600;
-      color: #fff;
-      margin-bottom: 0.6rem;
-      line-height: 1.2;
-    }
-    .landing-tagline {
-      font-size: var(--text-base);
-      color: rgba(255,255,255,0.45);
-      margin-bottom: 2.75rem;
-      font-style: italic;
-      font-family: 'Lora', serif;
-    }
-    .landing-choices {
-      display: flex;
-      gap: var(--space-md);
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .landing-choice {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: var(--radius-lg);
-      padding: 1.75rem 2.25rem;
-      cursor: pointer;
-      transition: all var(--t);
-      min-width: 190px;
-      color: #fff;
-      text-align: center;
-    }
-    .landing-choice:hover {
-      background: rgba(123,94,167,0.2);
-      border-color: var(--pt-write-l);
-      transform: translateY(-3px);
-      box-shadow: 0 8px 24px rgba(123,94,167,0.25);
-    }
+    /* ── AUTH SCREENS (dark) ── */
+    .auth-screen { align-items: center; justify-content: center; padding: 2rem 1.5rem; background: var(--pt-ink); }
+    .auth-screen .card { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+    .auth-screen .card-title { color: #fff; }
+    .auth-screen .card-subtitle { color: rgba(255,255,255,0.45); }
+    .auth-screen .form-group label { color: rgba(255,255,255,0.5); }
+    .auth-screen .form-input { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.12); color: #fff; }
+    .auth-screen .form-input::placeholder { color: rgba(255,255,255,0.25); }
+    .auth-screen .form-input:focus { border-color: var(--pt-write-l); box-shadow: 0 0 0 3px rgba(123,94,167,0.2); }
+    .auth-screen .text-link { color: var(--pt-write-l); }
+    .auth-screen .text-link:hover { color: #fff; }
+    .auth-screen .divider { border-color: rgba(255,255,255,0.1); }
+    .auth-footer { margin-top: var(--space-md); text-align: center; font-size: var(--text-sm); color: rgba(255,255,255,0.4); }
+
+    .back-link { font-size: var(--text-sm); color: var(--pt-muted); cursor: pointer; margin-bottom: var(--space-lg); display: inline-flex; align-items: center; gap: 0.3rem; transition: color var(--t); background: none; border: none; font-family: 'DM Sans', sans-serif; }
+    .back-link:hover { color: var(--pt-ink); }
+    .auth-screen .back-link { color: rgba(255,255,255,0.35); }
+    .auth-screen .back-link:hover { color: rgba(255,255,255,0.7); }
+
+    .auth-wordmark { display: flex; align-items: center; gap: 0.5rem; margin-bottom: var(--space-lg); }
+    .auth-wordmark-icon { width: 28px; height: 28px; background: var(--pt-write); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+    .auth-wordmark-text { font-family: 'Lora', serif; font-size: var(--text-base); font-weight: 600; color: rgba(255,255,255,0.8); }
+    .auth-wordmark-text em { font-style: italic; color: var(--pt-write-l); }
+
+    .login-wrap { max-width: 460px; width: 100%; display: flex; flex-direction: column; align-items: flex-start; }
+
+    /* ── LANDING ── */
+    #screen-landing { align-items: center; justify-content: center; background: var(--pt-ink); position: relative; overflow: hidden; }
+    #screen-landing::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 70% at 80% 20%, rgba(123,94,167,0.25) 0%, transparent 60%), radial-gradient(ellipse 50% 50% at 15% 85%, rgba(123,94,167,0.12) 0%, transparent 50%); pointer-events: none; }
+    .landing-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px); background-size: 52px 52px; pointer-events: none; }
+    .landing-inner { position: relative; z-index: 1; text-align: center; padding: 2rem 1.5rem; animation: fadeUp 0.5s ease both; }
+    .landing-wordmark { display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-bottom: 2rem; }
+    .landing-wordmark-icon { width: 36px; height: 36px; background: var(--pt-write); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .landing-wordmark-text { font-family: 'Lora', serif; font-size: var(--text-lg); font-weight: 600; color: rgba(255,255,255,0.9); }
+    .landing-wordmark-text em { font-style: italic; color: var(--pt-write-l); }
+    .landing-title { font-family: 'Lora', serif; font-size: clamp(var(--text-3xl), 5vw, var(--text-4xl)); font-weight: 600; color: #fff; margin-bottom: 0.6rem; line-height: 1.2; }
+    .landing-tagline { font-size: var(--text-base); color: rgba(255,255,255,0.45); margin-bottom: 2.75rem; font-style: italic; font-family: 'Lora', serif; }
+    .landing-choices { display: flex; gap: var(--space-md); justify-content: center; flex-wrap: wrap; }
+    .landing-choice { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: var(--radius-lg); padding: 1.75rem 2.25rem; cursor: pointer; transition: all var(--t); min-width: 190px; color: #fff; text-align: center; }
+    .landing-choice:hover { background: rgba(123,94,167,0.2); border-color: var(--pt-write-l); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(123,94,167,0.25); }
     .landing-choice-icon { font-size: 1.8rem; margin-bottom: 0.65rem; }
-    .landing-choice-label {
-      font-family: 'Lora', serif;
-      font-size: var(--text-lg);
-      font-weight: 600;
-      margin-bottom: 0.3rem;
-    }
+    .landing-choice-label { font-family: 'Lora', serif; font-size: var(--text-lg); font-weight: 600; margin-bottom: 0.3rem; }
     .landing-choice-desc { font-size: var(--text-xs); color: rgba(255,255,255,0.45); line-height: 1.5; }
 
-    /* ════════════════════════════════════════════════
-       SCREEN 1: STUDENT LOGIN
-       ════════════════════════════════════════════════ */
-    #screen-student-login {
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1.5rem;
-      background: var(--pt-light);
-    }
-    .login-wrap {
-      max-width: 460px;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .back-link {
-      font-size: var(--text-sm);
-      color: var(--pt-muted);
-      cursor: pointer;
-      margin-bottom: var(--space-lg);
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      transition: color var(--t);
-    }
-    .back-link:hover { color: var(--pt-ink); }
+    /* ── TRANSPARENCY ── */
+    #screen-student-login { align-items: center; justify-content: center; padding: 2rem 1.5rem; background: var(--pt-light); }
+    #screen-transparency { align-items: center; justify-content: center; padding: 2rem 1.5rem; background: var(--pt-light); }
+    .transparency-card { background: var(--pt-surface); border: 1px solid var(--pt-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: var(--space-xl) var(--space-lg); width: 100%; max-width: 520px; animation: fadeUp 0.4s ease both; }
+    .transparency-icon { width: 48px; height: 48px; background: var(--pt-write-pale); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: var(--space-lg); }
+    .transparency-card h2 { font-family: 'Lora', serif; font-size: var(--text-2xl); font-weight: 600; color: var(--pt-ink); margin-bottom: var(--space-sm); }
+    .transparency-card p { font-size: var(--text-base); color: var(--pt-ink); line-height: 1.75; margin-bottom: var(--space-lg); }
+    .transparency-items { list-style: none; margin-bottom: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); }
+    .transparency-items li { display: flex; gap: var(--space-sm); align-items: flex-start; font-size: var(--text-sm); color: var(--pt-ink); line-height: 1.5; }
+    .t-bullet { width: 20px; height: 20px; flex-shrink: 0; background: var(--pt-write-pale); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--pt-write); font-weight: 700; margin-top: 1px; }
+    .transparency-not { background: var(--pt-light); border: 1px solid var(--pt-border); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-lg); }
+    .transparency-not-label { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--pt-muted); margin-bottom: var(--space-xs); }
+    .transparency-not p { font-size: var(--text-sm); color: var(--pt-muted); margin-bottom: 0; line-height: 1.6; }
 
-    /* ════════════════════════════════════════════════
-       SCREEN 1b: TRANSPARENCY NOTICE
-       ════════════════════════════════════════════════ */
-    #screen-transparency {
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1.5rem;
-      background: var(--pt-light);
-    }
-    .transparency-card {
-      background: var(--pt-surface);
-      border: 1px solid var(--pt-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      padding: var(--space-xl) var(--space-lg);
-      width: 100%;
-      max-width: 520px;
-      animation: fadeUp 0.4s ease both;
-    }
-    .transparency-icon {
-      width: 48px; height: 48px;
-      background: var(--pt-write-pale);
-      border-radius: var(--radius-lg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.5rem;
-      margin-bottom: var(--space-lg);
-    }
-    .transparency-card h2 {
-      font-family: 'Lora', serif;
-      font-size: var(--text-2xl);
-      font-weight: 600;
-      color: var(--pt-ink);
-      margin-bottom: var(--space-sm);
-    }
-    .transparency-card p {
-      font-size: var(--text-base);
-      color: var(--pt-ink);
-      line-height: 1.75;
-      margin-bottom: var(--space-lg);
-    }
-    .transparency-items {
-      list-style: none;
-      margin-bottom: var(--space-lg);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
-    .transparency-items li {
-      display: flex;
-      gap: var(--space-sm);
-      align-items: flex-start;
-      font-size: var(--text-sm);
-      color: var(--pt-ink);
-      line-height: 1.5;
-    }
-    .transparency-items li .t-bullet {
-      width: 20px; height: 20px;
-      flex-shrink: 0;
-      background: var(--pt-write-pale);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.65rem;
-      color: var(--pt-write);
-      font-weight: 700;
-      margin-top: 1px;
-    }
-    .transparency-not {
-      background: var(--pt-light);
-      border: 1px solid var(--pt-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-sm) var(--space-md);
-      margin-bottom: var(--space-lg);
-    }
-    .transparency-not-label {
-      font-size: var(--text-xs);
-      font-weight: 600;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      color: var(--pt-muted);
-      margin-bottom: var(--space-xs);
-    }
-    .transparency-not p {
-      font-size: var(--text-sm);
-      color: var(--pt-muted);
-      margin-bottom: 0;
-      line-height: 1.6;
-    }
-
-    /* ════════════════════════════════════════════════
-       SCREEN 2: WRITING ENVIRONMENT
-       ════════════════════════════════════════════════ */
-    #screen-writing {
-      background: var(--pt-light);
-      flex-direction: column;
-    }
-    .writing-header {
-      background: var(--pt-ink);
-      color: #fff;
-      padding: 0 var(--space-lg);
-      flex-shrink: 0;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 2px 16px rgba(26,34,53,0.2);
-    }
-    .writing-header-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.65rem 0;
-      gap: var(--space-md);
-    }
+    /* ── WRITING ENV ── */
+    #screen-writing { background: var(--pt-light); flex-direction: column; }
+    .writing-header { background: var(--pt-ink); color: #fff; padding: 0 var(--space-lg); flex-shrink: 0; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 16px rgba(26,34,53,0.2); }
+    .writing-header-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 0; gap: var(--space-md); }
     .writing-header-left { display: flex; flex-direction: column; gap: 0.1rem; }
-    .writing-header-brand {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-bottom: 0.15rem;
-    }
-    .writing-header-brand-dot {
-      width: 8px; height: 8px;
-      background: var(--pt-write-l);
-      border-radius: 50%;
-    }
-    .writing-header-suite {
-      font-size: var(--text-xs);
-      color: rgba(255,255,255,0.35);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      font-weight: 500;
-    }
-    .writing-assignment-title {
-      font-family: 'Lora', serif;
-      font-size: var(--text-base);
-      font-weight: 600;
-      color: #fff;
-    }
+    .writing-header-brand { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.15rem; }
+    .writing-header-brand-dot { width: 8px; height: 8px; background: var(--pt-write-l); border-radius: 50%; }
+    .writing-header-suite { font-size: var(--text-xs); color: rgba(255,255,255,0.35); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
+    .writing-assignment-title { font-family: 'Lora', serif; font-size: var(--text-base); font-weight: 600; color: #fff; }
     .writing-student-name { font-size: var(--text-xs); color: rgba(255,255,255,0.45); }
-
-    .timer-display {
-      font-family: 'DM Mono', monospace;
-      font-size: 1.65rem;
-      font-weight: 500;
-      color: #fff;
-      letter-spacing: 0.04em;
-      transition: color var(--t);
-      flex-shrink: 0;
-    }
+    .timer-display { font-family: 'DM Mono', monospace; font-size: 1.65rem; font-weight: 500; color: #fff; letter-spacing: 0.04em; transition: color var(--t); flex-shrink: 0; }
     .timer-display.warning { color: #f0c040; }
     .timer-display.danger  { color: #e07070; }
-
-    .writing-meta {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 0.1rem;
-      flex-shrink: 0;
-    }
-    .word-count-display {
-      font-size: var(--text-sm);
-      color: rgba(255,255,255,0.6);
-      font-family: 'DM Mono', monospace;
-    }
-    .autosave-indicator {
-      font-size: var(--text-xs);
-      color: rgba(255,255,255,0.3);
-    }
+    .writing-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; flex-shrink: 0; }
+    .word-count-display { font-size: var(--text-sm); color: rgba(255,255,255,0.6); font-family: 'DM Mono', monospace; }
+    .autosave-indicator { font-size: var(--text-xs); color: rgba(255,255,255,0.3); }
     .autosave-indicator.saving { color: #f0c040; animation: pulse 1s infinite; }
     .autosave-indicator.saved  { color: #6dce8e; }
-
-    /* Transparency bar */
-    .transparency-bar {
-      background: rgba(123,94,167,0.15);
-      border-bottom: 1px solid rgba(123,94,167,0.2);
-      padding: 0.35rem var(--space-lg);
-      font-size: var(--text-xs);
-      color: var(--pt-write-l);
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      flex-shrink: 0;
-      position: sticky;
-      top: 52px;
-      z-index: 99;
-    }
-    .transparency-bar-dot {
-      width: 6px; height: 6px;
-      background: var(--pt-write-l);
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-
-    .writing-main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      max-width: 900px;
-      width: 100%;
-      margin: 0 auto;
-      padding: var(--space-lg) var(--space-lg);
-    }
-    #essay-textarea {
-      flex: 1;
-      width: 100%;
-      min-height: 560px;
-      padding: 1.75rem 2rem;
-      font-family: 'DM Sans', sans-serif;
-      font-size: var(--text-lg);
-      line-height: 1.9;
-      color: var(--pt-ink);
-      background: var(--pt-surface);
-      border: 1.5px solid var(--pt-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      resize: none;
-      transition: border-color var(--t);
-    }
-    #essay-textarea:focus {
-      outline: none;
-      border-color: var(--pt-write);
-      box-shadow: var(--shadow-card), 0 0 0 3px rgba(123,94,167,0.08);
-    }
-    #essay-textarea:disabled {
-      background: var(--pt-light);
-      cursor: not-allowed;
-      color: var(--pt-muted);
-    }
+    .transparency-bar { background: rgba(123,94,167,0.15); border-bottom: 1px solid rgba(123,94,167,0.2); padding: 0.35rem var(--space-lg); font-size: var(--text-xs); color: var(--pt-write-l); font-weight: 500; letter-spacing: 0.04em; display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; position: sticky; top: 52px; z-index: 99; }
+    .transparency-bar-dot { width: 6px; height: 6px; background: var(--pt-write-l); border-radius: 50%; animation: pulse 2s infinite; }
+    .writing-main { flex: 1; display: flex; flex-direction: column; max-width: 900px; width: 100%; margin: 0 auto; padding: var(--space-lg); }
+    #essay-textarea { flex: 1; width: 100%; min-height: 560px; padding: 1.75rem 2rem; font-family: 'DM Sans', sans-serif; font-size: var(--text-lg); line-height: 1.9; color: var(--pt-ink); background: var(--pt-surface); border: 1.5px solid var(--pt-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); resize: none; transition: border-color var(--t); }
+    #essay-textarea:focus { outline: none; border-color: var(--pt-write); box-shadow: var(--shadow-card), 0 0 0 3px rgba(123,94,167,0.08); }
+    #essay-textarea:disabled { background: var(--pt-light); cursor: not-allowed; color: var(--pt-muted); }
     #essay-textarea::placeholder { color: var(--pt-border); }
+    .writing-footer { max-width: 900px; width: 100%; margin: 0 auto; padding: 0 var(--space-lg) var(--space-lg); display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+    .writing-footer-left { font-size: var(--text-xs); color: var(--pt-muted); }
 
-    .writing-footer {
-      max-width: 900px;
-      width: 100%;
-      margin: 0 auto;
-      padding: 0 var(--space-lg) var(--space-lg);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .writing-footer-left {
-      font-size: var(--text-xs);
-      color: var(--pt-muted);
-    }
-
-    /* ════════════════════════════════════════════════
-       SCREEN 3: SUBMITTED (locked)
-       ════════════════════════════════════════════════ */
-    #screen-submitted {
-      flex-direction: column;
-      background: var(--pt-light);
-    }
-    .submitted-header {
-      background: var(--pt-ink);
-      color: #fff;
-      padding: 0.9rem var(--space-lg);
-      flex-shrink: 0;
-    }
-    .submitted-header-inner {
-      max-width: 760px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .submitted-header h1 {
-      font-family: 'Lora', serif;
-      font-size: var(--text-xl);
-      font-weight: 600;
-    }
+    /* ── SUBMITTED ── */
+    #screen-submitted { flex-direction: column; background: var(--pt-light); }
+    .submitted-header { background: var(--pt-ink); color: #fff; padding: 0.9rem var(--space-lg); flex-shrink: 0; }
+    .submitted-header-inner { max-width: 760px; margin: 0 auto; }
+    .submitted-header h1 { font-family: 'Lora', serif; font-size: var(--text-xl); font-weight: 600; }
     .submitted-header h1 em { font-style: italic; color: var(--pt-write-l); }
-    .submitted-body {
-      max-width: 760px;
-      width: 100%;
-      margin: 0 auto;
-      padding: var(--space-lg);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-md);
-    }
-    .submitted-badge {
-      background: #eaf5ef;
-      border: 1px solid #a9d9be;
-      border-radius: var(--radius-md);
-      padding: 0.85rem 1.1rem;
-      color: var(--success);
-      font-weight: 500;
-      font-size: var(--text-sm);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .process-summary {
-      background: var(--pt-surface);
-      border: 1px solid var(--pt-border);
-      border-radius: var(--radius-lg);
-      padding: var(--space-md) var(--space-lg);
-      box-shadow: var(--shadow-card);
-    }
-    .process-summary h3 {
-      font-family: 'Lora', serif;
-      font-size: var(--text-base);
-      font-weight: 600;
-      color: var(--pt-ink);
-      margin-bottom: var(--space-sm);
-    }
+    .submitted-body { max-width: 760px; width: 100%; margin: 0 auto; padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); }
+    .submitted-badge { background: #eaf5ef; border: 1px solid #a9d9be; border-radius: var(--radius-md); padding: 0.85rem 1.1rem; color: var(--success); font-weight: 500; font-size: var(--text-sm); display: flex; align-items: center; gap: 0.5rem; }
+    .process-summary { background: var(--pt-surface); border: 1px solid var(--pt-border); border-radius: var(--radius-lg); padding: var(--space-md) var(--space-lg); box-shadow: var(--shadow-card); }
+    .process-summary h3 { font-family: 'Lora', serif; font-size: var(--text-base); font-weight: 600; color: var(--pt-ink); margin-bottom: var(--space-sm); }
     .process-summary-items { display: flex; gap: var(--space-lg); flex-wrap: wrap; }
     .ps-item { font-size: var(--text-sm); color: var(--pt-muted); }
     .ps-item strong { color: var(--pt-ink); }
-    .submitted-essay-wrap {}
-    .submitted-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 0.75rem;
-    }
-    .submitted-label {
-      font-size: var(--text-xs);
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--pt-muted);
-    }
-    #submitted-essay {
-      width: 100%;
-      min-height: 360px;
-      padding: 1.5rem 1.75rem;
-      font-family: 'DM Sans', sans-serif;
-      font-size: var(--text-base);
-      line-height: 1.8;
-      color: var(--pt-ink);
-      background: var(--pt-surface);
-      border: 1.5px solid var(--pt-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      resize: none;
-      cursor: default;
-    }
+    .submitted-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+    .submitted-label { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pt-muted); }
+    #submitted-essay { width: 100%; min-height: 360px; padding: 1.5rem 1.75rem; font-family: 'DM Sans', sans-serif; font-size: var(--text-base); line-height: 1.8; color: var(--pt-ink); background: var(--pt-surface); border: 1.5px solid var(--pt-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); resize: none; cursor: default; }
 
-    /* ════════════════════════════════════════════════
-       SCREEN 4: TEACHER LOGIN
-       ════════════════════════════════════════════════ */
-    #screen-teacher-login {
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1.5rem;
-      background: var(--pt-ink);
-    }
-    #screen-teacher-login .card {
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(255,255,255,0.1);
-    }
-    #screen-teacher-login .card-title { color: #fff; }
-    #screen-teacher-login .card-subtitle { color: rgba(255,255,255,0.4); }
-    #screen-teacher-login .form-group label { color: rgba(255,255,255,0.45); }
-    #screen-teacher-login .form-input {
-      background: rgba(255,255,255,0.07);
-      border-color: rgba(255,255,255,0.12);
-      color: #fff;
-    }
-    #screen-teacher-login .form-input::placeholder { color: rgba(255,255,255,0.25); }
-    #screen-teacher-login .form-input:focus {
-      border-color: var(--pt-write-l);
-      box-shadow: 0 0 0 3px rgba(123,94,167,0.2);
-    }
-    #screen-teacher-login .back-link { color: rgba(255,255,255,0.35); }
-    #screen-teacher-login .back-link:hover { color: rgba(255,255,255,0.7); }
-
-    /* ════════════════════════════════════════════════
-       SCREEN 5: TEACHER DASHBOARD
-       ════════════════════════════════════════════════ */
+    /* ── DASHBOARD ── */
     #screen-dashboard { flex-direction: column; }
-
-    .dash-header {
-      background: var(--pt-ink);
-      color: #fff;
-      padding: 0 var(--space-lg);
-      box-shadow: 0 2px 16px rgba(26,34,53,0.2);
-      flex-shrink: 0;
-    }
-    .dash-header-inner {
-      max-width: 1300px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.85rem 0;
-    }
+    .dash-header { background: var(--pt-ink); color: #fff; padding: 0 var(--space-lg); box-shadow: 0 2px 16px rgba(26,34,53,0.2); flex-shrink: 0; }
+    .dash-header-inner { max-width: 1300px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 0; }
     .dash-brand { display: flex; align-items: center; gap: var(--space-sm); }
-    .dash-brand-icon {
-      width: 32px; height: 32px;
-      background: var(--pt-write);
-      border-radius: var(--radius-md);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1rem;
-      flex-shrink: 0;
-    }
-    .dash-brand-text {}
-    .dash-brand-suite {
-      font-size: var(--text-xs);
-      color: rgba(255,255,255,0.35);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      font-weight: 500;
-    }
-    .dash-brand h1 {
-      font-family: 'Lora', serif;
-      font-size: var(--text-xl);
-      font-weight: 600;
-      color: #fff;
-      line-height: 1.2;
-    }
-    .dash-main {
-      max-width: 1300px;
-      margin: 0 auto;
-      padding: var(--space-lg);
-      width: 100%;
-      display: grid;
-      grid-template-columns: 340px 1fr;
-      gap: var(--space-lg);
-      align-items: start;
-    }
-
-    /* Panel component */
-    .panel {
-      background: var(--pt-surface);
-      border: 1px solid var(--pt-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      overflow: hidden;
-    }
-    .panel-header {
-      background: var(--pt-ink);
-      padding: 0.75rem var(--space-md);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .panel-header h2 {
-      font-family: 'Lora', serif;
-      font-size: var(--text-base);
-      font-weight: 600;
-      color: #fff;
-    }
+    .dash-brand-icon { width: 32px; height: 32px; background: var(--pt-write); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .dash-brand-suite { font-size: var(--text-xs); color: rgba(255,255,255,0.35); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; }
+    .dash-brand h1 { font-family: 'Lora', serif; font-size: var(--text-xl); font-weight: 600; color: #fff; line-height: 1.2; }
+    .dash-main { max-width: 1300px; margin: 0 auto; padding: var(--space-lg); width: 100%; display: grid; grid-template-columns: 340px 1fr; gap: var(--space-lg); align-items: start; }
+    .panel { background: var(--pt-surface); border: 1px solid var(--pt-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); overflow: hidden; }
+    .panel-header { background: var(--pt-ink); padding: 0.75rem var(--space-md); display: flex; align-items: center; justify-content: space-between; }
+    .panel-header h2 { font-family: 'Lora', serif; font-size: var(--text-base); font-weight: 600; color: #fff; }
     .panel-body { padding: var(--space-md); }
-
-    /* Assignment form */
-    .assignment-form .form-input,
-    .assignment-form .form-select {
-      font-size: var(--text-sm);
-      padding: 0.5rem 0.75rem;
-    }
+    .assignment-form .form-input, .assignment-form .form-select { font-size: var(--text-sm); padding: 0.5rem 0.75rem; }
     .assignment-form { margin-bottom: var(--space-md); }
-
-    /* Assignment list */
     .assignment-list { display: flex; flex-direction: column; gap: 0.5rem; }
-    .assignment-item {
-      border: 1.5px solid var(--pt-border);
-      border-radius: var(--radius-md);
-      padding: 0.7rem 0.9rem;
-      cursor: pointer;
-      transition: all var(--t);
-    }
+    .assignment-item { border: 1.5px solid var(--pt-border); border-radius: var(--radius-md); padding: 0.7rem 0.9rem; cursor: pointer; transition: all var(--t); }
     .assignment-item:hover { border-color: var(--pt-write-l); background: var(--pt-write-pale); }
     .assignment-item.selected { border-color: var(--pt-write); background: var(--pt-write-pale); }
     .assignment-item.active-assignment { border-color: var(--success); }
-    .assignment-item-title {
-      font-weight: 600;
-      font-size: var(--text-sm);
-      color: var(--pt-ink);
-      margin-bottom: 0.2rem;
-    }
+    .assignment-item-title { font-weight: 600; font-size: var(--text-sm); color: var(--pt-ink); margin-bottom: 0.2rem; }
     .assignment-item-meta { font-size: var(--text-xs); color: var(--pt-muted); }
-    .assignment-item-actions {
-      display: flex;
-      gap: 0.35rem;
-      margin-top: 0.5rem;
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      padding: 0.18rem 0.5rem;
-      border-radius: 20px;
-      border: 1px solid;
-    }
+    .assignment-item-actions { display: flex; gap: 0.35rem; margin-top: 0.5rem; }
+    .pill { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.18rem 0.5rem; border-radius: 20px; border: 1px solid; }
     .pill-active { background: #eaf5ef; color: var(--success); border-color: #a9d9be; }
     .pill-active::before { content: '●'; font-size: 0.45rem; }
     .pill-inactive { background: var(--pt-light); color: var(--pt-muted); border-color: var(--pt-border); }
     .empty-panel { padding: var(--space-lg); text-align: center; color: var(--pt-muted); font-size: var(--text-sm); }
-
-    /* Submissions panel */
-    .sub-toolbar {
-      padding: 0.75rem var(--space-md);
-      background: var(--pt-light);
-      border-bottom: 1px solid var(--pt-border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
+    .sub-toolbar { padding: 0.75rem var(--space-md); background: var(--pt-light); border-bottom: 1px solid var(--pt-border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
     .sub-count { font-size: var(--text-sm); color: var(--pt-muted); }
-
-    /* Table */
     table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
     thead { background: var(--pt-ink); color: #fff; }
-    thead th {
-      padding: 0.7rem var(--space-md);
-      text-align: left;
-      font-weight: 500;
-      font-size: var(--text-xs);
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-    }
-    tbody tr {
-      border-bottom: 1px solid var(--pt-border);
-      transition: background var(--t);
-      cursor: pointer;
-    }
+    thead th { padding: 0.7rem var(--space-md); text-align: left; font-weight: 500; font-size: var(--text-xs); letter-spacing: 0.07em; text-transform: uppercase; }
+    tbody tr { border-bottom: 1px solid var(--pt-border); transition: background var(--t); cursor: pointer; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--pt-write-pale); }
     tbody td { padding: 0.7rem var(--space-md); vertical-align: middle; }
-    .flag-cell { display: flex; gap: 0.25rem; font-size: 0.95rem; }
     .submitted-yes { color: var(--success); font-weight: 600; font-size: var(--text-xs); }
     .submitted-no  { color: var(--pt-muted); font-size: var(--text-xs); }
-
-    /* Status badges in table */
-    .status-writing { color: var(--pt-write); font-weight: 500; font-size: var(--text-xs); }
-    .status-away { color: var(--warning); font-weight: 500; font-size: var(--text-xs); }
-    .status-not-started { color: var(--pt-muted); font-size: var(--text-xs); }
-
-    /* Expanded detail row */
     .detail-row { background: #f8f6fd !important; cursor: default !important; }
     .detail-row:hover { background: #f8f6fd !important; }
-    .detail-cell {
-      padding: var(--space-md) var(--space-lg);
-      border-top: 2px solid var(--pt-write);
-    }
-    .detail-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: var(--space-md);
-    }
-    .detail-flags { display: flex; gap: 0.5rem; align-items: center; font-size: var(--text-sm); }
-    .detail-essay {
-      background: var(--pt-surface);
-      border: 1px solid var(--pt-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      font-size: var(--text-sm);
-      line-height: 1.75;
-      color: var(--pt-ink);
-      white-space: pre-wrap;
-      max-height: 280px;
-      overflow-y: auto;
-      margin-bottom: var(--space-md);
-    }
-    .process-log-title {
-      font-size: var(--text-xs);
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--pt-muted);
-      margin-bottom: var(--space-sm);
-    }
-    .process-log-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .log-entry {
-      display: flex;
-      align-items: baseline;
-      gap: 0.6rem;
-      font-size: var(--text-xs);
-      padding: 0.35rem 0.6rem;
-      border-radius: var(--radius-sm);
-      background: var(--pt-light);
-    }
+    .detail-cell { padding: var(--space-md) var(--space-lg); border-top: 2px solid var(--pt-write); }
+    .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md); }
+    .detail-essay { background: var(--pt-surface); border: 1px solid var(--pt-border); border-radius: var(--radius-md); padding: var(--space-md); font-size: var(--text-sm); line-height: 1.75; color: var(--pt-ink); white-space: pre-wrap; max-height: 280px; overflow-y: auto; margin-bottom: var(--space-md); }
+    .process-log-title { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pt-muted); margin-bottom: var(--space-sm); }
+    .process-log-list { display: flex; flex-direction: column; gap: 0.3rem; max-height: 200px; overflow-y: auto; }
+    .log-entry { display: flex; align-items: baseline; gap: 0.6rem; font-size: var(--text-xs); padding: 0.35rem 0.6rem; border-radius: var(--radius-sm); background: var(--pt-light); }
     .log-entry.paste        { background: #fef4e6; border-left: 3px solid #c9a84c; }
-    .log-entry.window_blur,
-    .log-entry.tab_hidden   { background: #fdecea; border-left: 3px solid var(--danger); }
+    .log-entry.window_blur, .log-entry.tab_hidden { background: #fdecea; border-left: 3px solid var(--danger); }
     .log-entry.window_focus { background: #eaf5ef; border-left: 3px solid var(--success); }
+    .log-entry.first_keystroke { background: var(--pt-write-pale); border-left: 3px solid var(--pt-write); }
     .log-entry.burst        { background: #eaf5ef; border-left: 3px solid var(--success); }
     .log-entry.delete_burst { background: #fff3e0; border-left: 3px solid var(--warning); }
     .log-entry.word_drop    { background: #fdecea; border-left: 3px solid var(--danger); }
-    .log-type {
-      font-weight: 600;
-      font-size: 0.68rem;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      min-width: 110px;
-      color: var(--pt-ink);
-    }
-    .log-time {
-      color: var(--pt-muted);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      min-width: 140px;
-      display: flex;
-      flex-direction: column;
-      gap: 0.05rem;
-    }
+    .log-type { font-weight: 600; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; min-width: 110px; color: var(--pt-ink); }
+    .log-time { color: var(--pt-muted); font-family: 'DM Mono', monospace; font-size: 0.7rem; min-width: 140px; display: flex; flex-direction: column; gap: 0.05rem; }
     .log-time .log-wall { color: var(--pt-ink); font-weight: 500; }
     .log-time .log-elapsed { color: var(--pt-muted); font-size: 0.65rem; }
     .log-detail { color: var(--pt-ink); flex: 1; }
 
-    /* ── TOAST ──────────────────────────────────────── */
-    #toast-container {
-      position: fixed;
-      bottom: 1.5rem;
-      right: 1.5rem;
-      z-index: 500;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .toast {
-      background: var(--pt-ink);
-      color: #fff;
-      padding: 0.7rem 1.1rem;
-      border-radius: var(--radius-md);
-      font-size: var(--text-sm);
-      box-shadow: var(--shadow-modal);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      max-width: 320px;
-      animation: slideIn 250ms ease;
-    }
+    /* ── TOAST ── */
+    #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 500; display: flex; flex-direction: column; gap: 0.5rem; }
+    .toast { background: var(--pt-ink); color: #fff; padding: 0.7rem 1.1rem; border-radius: var(--radius-md); font-size: var(--text-sm); box-shadow: var(--shadow-modal); display: flex; align-items: center; gap: 0.5rem; max-width: 320px; animation: slideIn 250ms ease; }
     .toast.success { background: var(--success); }
     .toast.error   { background: var(--danger); }
     .toast.warning { background: var(--warning); }
 
-    /* ── MODAL ──────────────────────────────────────── */
-    .modal-overlay {
-      position: fixed; inset: 0;
-      background: rgba(10,20,35,0.5);
-      z-index: 300;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 200ms ease;
-    }
+    /* ── MODAL ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(10,20,35,0.5); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 1rem; opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
     .modal-overlay.visible { opacity: 1; pointer-events: all; }
-    .modal-box {
-      background: var(--pt-surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-modal);
-      width: 100%; max-width: 440px;
-      transform: translateY(12px);
-      transition: transform 200ms ease;
-    }
+    .modal-box { background: var(--pt-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-modal); width: 100%; max-width: 440px; transform: translateY(12px); transition: transform 200ms ease; }
     .modal-overlay.visible .modal-box { transform: translateY(0); }
-    .modal-header {
-      padding: var(--space-lg) var(--space-lg) 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-    }
-    .modal-header h3 {
-      font-family: 'Lora', serif;
-      font-size: var(--text-xl);
-      font-weight: 600;
-      color: var(--pt-ink);
-    }
-    .modal-close {
-      background: none; border: none;
-      cursor: pointer; color: var(--pt-muted);
-      font-size: 1.3rem; padding: 0;
-      transition: color var(--t);
-    }
+    .modal-header { padding: var(--space-lg) var(--space-lg) 0; display: flex; justify-content: space-between; align-items: start; }
+    .modal-header h3 { font-family: 'Lora', serif; font-size: var(--text-xl); font-weight: 600; color: var(--pt-ink); }
+    .modal-close { background: none; border: none; cursor: pointer; color: var(--pt-muted); font-size: 1.3rem; padding: 0; transition: color var(--t); }
     .modal-close:hover { color: var(--pt-ink); }
-    .modal-body {
-      padding: var(--space-md) var(--space-lg);
-      font-size: var(--text-sm);
-      line-height: 1.7;
-      color: var(--pt-ink);
-    }
-    .modal-footer {
-      padding: var(--space-sm) var(--space-lg) var(--space-lg);
-      display: flex;
-      gap: 0.6rem;
-      justify-content: flex-end;
-    }
+    .modal-body { padding: var(--space-md) var(--space-lg); font-size: var(--text-sm); line-height: 1.7; color: var(--pt-ink); }
+    .modal-footer { padding: var(--space-sm) var(--space-lg) var(--space-lg); display: flex; gap: 0.6rem; justify-content: flex-end; }
 
-    /* ── RESPONSIVE ─────────────────────────────────── */
-    @media (max-width: 960px) {
-      .dash-main { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 640px) {
-      .landing-choices { flex-direction: column; align-items: center; }
-      .landing-choice { width: 260px; }
-      .writing-header-inner { flex-wrap: wrap; }
-    }
+    @media (max-width: 960px) { .dash-main { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .landing-choices { flex-direction: column; align-items: center; } .landing-choice { width: 260px; } }
   </style>
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════════
-     SCREEN 0: LANDING
-     ════════════════════════════════════════════════ -->
+<!-- LANDING -->
 <div class="screen active" id="screen-landing">
   <div class="landing-grid"></div>
   <div class="landing-inner">
@@ -1094,17 +303,14 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════
-     SCREEN 1: STUDENT LOGIN
-     ════════════════════════════════════════════════ -->
+<!-- STUDENT LOGIN -->
 <div class="screen" id="screen-student-login">
   <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;">
     <div class="login-wrap">
-      <span class="back-link" onclick="showScreen('landing')">← Back</span>
+      <button class="back-link" onclick="showScreen('landing')">← Back</button>
       <div class="card">
         <div class="card-title">Join Session</div>
         <div class="card-subtitle">Enter the join code your teacher shared, then your display name.</div>
-
         <div class="form-group">
           <label>Join Code</label>
           <input class="form-input" id="s-password" type="text" placeholder="e.g. EAGLE7"
@@ -1119,20 +325,14 @@
           <label>Class / Period <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
           <input class="form-input" id="s-period" type="text" placeholder="e.g. Period 3" autocomplete="off">
         </div>
-
         <div id="s-status" class="status-msg"></div>
-
-        <button class="btn btn-primary btn-lg btn-block" style="margin-top:var(--space-md)" onclick="studentLogin()" id="s-login-btn">
-          Continue →
-        </button>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:var(--space-md)" onclick="studentLogin()" id="s-login-btn">Continue →</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════
-     SCREEN 1b: TRANSPARENCY NOTICE (cannot skip)
-     ════════════════════════════════════════════════ -->
+<!-- TRANSPARENCY -->
 <div class="screen" id="screen-transparency">
   <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;">
     <div class="transparency-card">
@@ -1140,40 +340,22 @@
       <h2>Before you begin</h2>
       <p>This is a monitored writing session. Your teacher will have access to the following information after you submit:</p>
       <ul class="transparency-items">
-        <li>
-          <span class="t-bullet">✓</span>
-          <span>How long you spent writing and your total word count</span>
-        </li>
-        <li>
-          <span class="t-bullet">✓</span>
-          <span>Whether you left this page or switched to another window</span>
-        </li>
-        <li>
-          <span class="t-bullet">✓</span>
-          <span>Whether you pasted content into the writing area, and how much</span>
-        </li>
-        <li>
-          <span class="t-bullet">✓</span>
-          <span>Whether pasted content was removed shortly after being added</span>
-        </li>
+        <li><span class="t-bullet">✓</span><span>How long you spent writing and your total word count</span></li>
+        <li><span class="t-bullet">✓</span><span>Whether you left this page or switched to another window</span></li>
+        <li><span class="t-bullet">✓</span><span>Whether you pasted content into the writing area, and how much</span></li>
+        <li><span class="t-bullet">✓</span><span>Whether pasted content was removed shortly after being added</span></li>
       </ul>
       <div class="transparency-not">
         <div class="transparency-not-label">What is not recorded</div>
         <p>Your clipboard contents, keystrokes, screen activity, camera, or anything from other tabs or applications.</p>
       </div>
-      <p style="font-size:var(--text-sm);color:var(--pt-muted);margin-bottom:var(--space-lg);">
-        Your work is saved automatically every 30 seconds. Begin when you are ready.
-      </p>
-      <button class="btn btn-primary btn-lg btn-block" onclick="beginWriting()">
-        I understand — Begin Writing
-      </button>
+      <p style="font-size:var(--text-sm);color:var(--pt-muted);margin-bottom:var(--space-lg);">Your work is saved automatically every 30 seconds. Begin when you are ready.</p>
+      <button class="btn btn-primary btn-lg btn-block" onclick="beginWriting()">I understand — Begin Writing</button>
     </div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════
-     SCREEN 2: WRITING ENVIRONMENT
-     ════════════════════════════════════════════════ -->
+<!-- WRITING ENVIRONMENT -->
 <div class="screen" id="screen-writing">
   <header class="writing-header">
     <div class="writing-header-inner">
@@ -1196,18 +378,10 @@
     <div class="transparency-bar-dot"></div>
     This session is being documented
   </div>
-
   <div class="writing-main">
-    <textarea
-      id="essay-textarea"
-      placeholder="Begin writing here…"
-      spellcheck="false"
-      autocorrect="off"
-      autocapitalize="off"
-      autocomplete="off"
-    ></textarea>
+    <textarea id="essay-textarea" placeholder="Begin writing here…"
+      spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
   </div>
-
   <div class="writing-footer">
     <span class="writing-footer-left">Work is saved automatically</span>
     <div style="display:flex;gap:0.75rem;">
@@ -1217,9 +391,7 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════
-     SCREEN 3: SUBMITTED (locked)
-     ════════════════════════════════════════════════ -->
+<!-- SUBMITTED -->
 <div class="screen" id="screen-submitted">
   <div class="submitted-header">
     <div class="submitted-header-inner">
@@ -1227,76 +399,182 @@
     </div>
   </div>
   <div class="submitted-body">
-    <div class="submitted-badge">
-      ✓ Your essay has been submitted. You cannot edit it further.
-    </div>
+    <div class="submitted-badge">✓ Your essay has been submitted. You cannot edit it further.</div>
     <div class="process-summary" id="process-summary"></div>
-    <div class="submitted-essay-wrap">
+    <div>
       <div class="submitted-toolbar">
         <span class="submitted-label">Your Submitted Essay</span>
         <button class="btn btn-ghost" onclick="copyToClipboard()" style="font-size:var(--text-xs);padding:0.4rem 0.8rem">Copy to Clipboard</button>
       </div>
       <textarea id="submitted-essay" readonly></textarea>
-      <p class="form-hint" style="margin-top:0.4rem;text-align:right">
-        Your teacher has a record of this session.
-      </p>
+      <p class="form-hint" style="margin-top:0.4rem;text-align:right">Your teacher has a record of this session.</p>
     </div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════
-     SCREEN 4: TEACHER LOGIN
-     ════════════════════════════════════════════════ -->
-<div class="screen" id="screen-teacher-login">
-  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;">
+<!-- TEACHER LOGIN -->
+<div class="screen auth-screen" id="screen-teacher-login">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;width:100%;">
     <div class="login-wrap">
-      <span class="back-link" onclick="showScreen('landing')">← Back</span>
+      <button class="back-link" onclick="showScreen('landing')">← Back</button>
       <div class="card">
-        <div class="card-title">Teacher Dashboard</div>
-        <div class="card-subtitle">Enter your password to access assignment management and session reports.</div>
+        <div class="auth-wordmark">
+          <div class="auth-wordmark-icon">🖊️</div>
+          <div class="auth-wordmark-text">PaperTrail <em>Write</em></div>
+        </div>
+        <div class="card-title">Sign in</div>
+        <div class="card-subtitle">Enter your email and password to access your dashboard.</div>
         <div class="form-group">
-          <label>Teacher Password</label>
+          <label>Email</label>
+          <input class="form-input" id="t-email" type="email" placeholder="you@school.edu"
+            onkeydown="if(event.key==='Enter') teacherLogin()">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
           <input class="form-input" id="t-password" type="password" placeholder="Password"
             onkeydown="if(event.key==='Enter') teacherLogin()">
         </div>
         <div id="t-status" class="status-msg"></div>
-        <button class="btn btn-primary btn-lg btn-block" style="margin-top:var(--space-md)" onclick="teacherLogin()">
-          Open Dashboard →
-        </button>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:var(--space-md)" onclick="teacherLogin()" id="t-login-btn">Sign in →</button>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <button class="text-link" onclick="showScreen('teacher-signup')">Create account</button>
+          <button class="text-link" onclick="showScreen('teacher-reset')">Forgot password?</button>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════
-     SCREEN 5: TEACHER DASHBOARD
-     ════════════════════════════════════════════════ -->
+<!-- TEACHER SIGN UP -->
+<div class="screen auth-screen" id="screen-teacher-signup">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;width:100%;">
+    <div class="login-wrap">
+      <button class="back-link" onclick="showScreen('teacher-login')">← Back to sign in</button>
+      <div class="card">
+        <div class="auth-wordmark">
+          <div class="auth-wordmark-icon">🖊️</div>
+          <div class="auth-wordmark-text">PaperTrail <em>Write</em></div>
+        </div>
+        <div class="card-title">Create account</div>
+        <div class="card-subtitle">Start your free trial — no credit card required.</div>
+        <div class="form-group">
+          <label>Your Name</label>
+          <input class="form-input" id="su-name" type="text" placeholder="Ms. Smith">
+        </div>
+        <div class="form-group">
+          <label>School</label>
+          <input class="form-input" id="su-school" type="text" placeholder="Lincoln High School">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input class="form-input" id="su-email" type="email" placeholder="you@school.edu">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input class="form-input" id="su-password" type="password" placeholder="At least 8 characters">
+          <div class="form-hint">At least 8 characters.</div>
+        </div>
+        <div id="su-status" class="status-msg"></div>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:var(--space-md)" onclick="teacherSignUp()" id="su-btn">Create account →</button>
+        <div class="auth-footer">Already have an account? <button class="text-link" onclick="showScreen('teacher-login')">Sign in</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHECK EMAIL -->
+<div class="screen auth-screen" id="screen-check-email">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;width:100%;">
+    <div class="login-wrap">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:2.5rem;margin-bottom:var(--space-md);">📬</div>
+        <div class="card-title" style="margin-bottom:var(--space-sm);">Check your email</div>
+        <p style="font-size:var(--text-sm);color:var(--pt-muted);line-height:1.7;margin-bottom:var(--space-lg);">
+          We sent a confirmation link to <strong id="confirm-email-display" style="color:var(--pt-ink)"></strong>.
+          Click the link to activate your account, then come back here to sign in.
+        </p>
+        <button class="btn btn-primary btn-block" onclick="showScreen('teacher-login')">Back to sign in</button>
+        <div class="auth-footer" style="margin-top:var(--space-md);">Didn't receive it? Check your spam folder.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORD RESET REQUEST -->
+<div class="screen auth-screen" id="screen-teacher-reset">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;width:100%;">
+    <div class="login-wrap">
+      <button class="back-link" onclick="showScreen('teacher-login')">← Back to sign in</button>
+      <div class="card">
+        <div class="auth-wordmark">
+          <div class="auth-wordmark-icon">🖊️</div>
+          <div class="auth-wordmark-text">PaperTrail <em>Write</em></div>
+        </div>
+        <div class="card-title">Reset password</div>
+        <div class="card-subtitle">Enter your email and we'll send you a reset link.</div>
+        <div class="form-group">
+          <label>Email</label>
+          <input class="form-input" id="reset-email" type="email" placeholder="you@school.edu"
+            onkeydown="if(event.key==='Enter') requestReset()">
+        </div>
+        <div id="reset-status" class="status-msg"></div>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:var(--space-md)" onclick="requestReset()" id="reset-btn">Send reset link →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SET NEW PASSWORD -->
+<div class="screen auth-screen" id="screen-new-password">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;width:100%;">
+    <div class="login-wrap">
+      <div class="card">
+        <div class="auth-wordmark">
+          <div class="auth-wordmark-icon">🖊️</div>
+          <div class="auth-wordmark-text">PaperTrail <em>Write</em></div>
+        </div>
+        <div class="card-title">Set new password</div>
+        <div class="card-subtitle">Choose a new password for your account.</div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input class="form-input" id="new-password" type="password" placeholder="At least 8 characters"
+            onkeydown="if(event.key==='Enter') setNewPassword()">
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input class="form-input" id="new-password-confirm" type="password" placeholder="Repeat password"
+            onkeydown="if(event.key==='Enter') setNewPassword()">
+        </div>
+        <div id="newpw-status" class="status-msg"></div>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:var(--space-md)" onclick="setNewPassword()" id="newpw-btn">Set password →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TEACHER DASHBOARD -->
 <div class="screen" id="screen-dashboard">
   <header class="dash-header">
     <div class="dash-header-inner">
       <div class="dash-brand">
         <div class="dash-brand-icon">🖊️</div>
-        <div class="dash-brand-text">
+        <div>
           <div class="dash-brand-suite">PaperTrail</div>
           <h1>Write</h1>
         </div>
       </div>
       <div style="display:flex;gap:0.6rem;align-items:center">
-        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)"
-          onclick="refreshDashboard()">↻ Refresh</button>
-        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)"
-          onclick="showScreen('landing')">← Exit</button>
+        <span id="dash-user-email" style="font-size:var(--text-xs);color:rgba(255,255,255,0.4);margin-right:0.25rem;"></span>
+        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="refreshDashboard()">↻ Refresh</button>
+        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="teacherLogout()">Sign out</button>
       </div>
     </div>
   </header>
-
   <div class="dash-main">
-    <!-- LEFT: Assignment management -->
     <div>
       <div class="panel" style="margin-bottom:var(--space-md)">
-        <div class="panel-header">
-          <h2>New Assignment</h2>
-        </div>
+        <div class="panel-header"><h2>New Assignment</h2></div>
         <div class="panel-body">
           <div class="assignment-form">
             <div class="form-group">
@@ -1306,8 +584,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Join Code</label>
-                <input class="form-input" id="a-password" type="text" placeholder="e.g. EAGLE7"
-                  style="font-family:'DM Mono',monospace;letter-spacing:0.06em">
+                <input class="form-input" id="a-password" type="text" placeholder="e.g. EAGLE7" style="font-family:'DM Mono',monospace;letter-spacing:0.06em">
               </div>
               <div class="form-group">
                 <label>Time (minutes)</label>
@@ -1318,1046 +595,531 @@
           </div>
         </div>
       </div>
-
       <div class="panel">
-        <div class="panel-header">
-          <h2>All Assignments</h2>
-        </div>
+        <div class="panel-header"><h2>All Assignments</h2></div>
         <div class="panel-body" style="padding:0.75rem">
           <div id="assignment-list"><div class="empty-panel">No assignments yet.</div></div>
         </div>
       </div>
     </div>
-
-    <!-- RIGHT: Submissions viewer -->
     <div class="panel" style="overflow:visible">
-      <div class="panel-header">
-        <h2 id="submissions-panel-title">Session Report</h2>
-      </div>
+      <div class="panel-header"><h2 id="submissions-panel-title">Session Report</h2></div>
       <div class="sub-toolbar">
         <span class="sub-count" id="sub-count">Select an assignment to view its session report.</span>
-        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem"
-          onclick="exportTSV()" id="export-btn" disabled>↓ Export Tab-Separated</button>
+        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem" onclick="exportTSV()" id="export-btn" disabled>↓ Export Tab-Separated</button>
       </div>
       <div id="submissions-table-wrap">
         <div class="empty-panel" style="padding:3rem">Select an assignment on the left to view its session report.</div>
       </div>
       <div style="padding:var(--space-md) var(--space-lg)">
-        <div class="disclaimer">
-          This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.
-        </div>
+        <div class="disclaimer">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Shared modal -->
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal-box" id="modal-box"></div>
-</div>
-
-<!-- Toast container -->
+<div class="modal-overlay" id="modal-overlay"><div class="modal-box" id="modal-box"></div></div>
 <div id="toast-container"></div>
 
-
-<!-- ════════════════════════════════════════════════
-     JAVASCRIPT
-     ════════════════════════════════════════════════ -->
+<script src="env.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 
-// ═══════════════════════════════════════════════════
-// CONFIGURATION — Edit these values before deploying
-// ═══════════════════════════════════════════════════
-const SUPABASE_URL      = 'https://opxejwarxyuqyafysqvk.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_A7iE6EknGVEEOTLZiof8xw_TjC2VdSK';
-// SHA-256 hash of the teacher password — plaintext never stored here
-const TEACHER_PASSWORD_HASH = '58593ffbd2e16eb5a804c159a531fc1323a897ca7d8c1c558e79b6e862f84b90';
-
-// ═══════════════════════════════════════════════════
-// SUPABASE CLIENT
-// ═══════════════════════════════════════════════════
 const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
 
-// ═══════════════════════════════════════════════════
-// APP STATE
-// ═══════════════════════════════════════════════════
 const STATE = {
-  // Student session
-  submissionId: null,
-  assignmentId: null,
-  assignmentTitle: null,
-  timeLimitSeconds: 0,
-  studentName: null,
-  period: null,
-  startedAt: null,
-  timerInterval: null,
-  autosaveInterval: null,
-  processLog: [],
-  isSubmitted: false,
-  // Blur tracking for window_focus events
-  _blurStartTime: null,
-
-  // Process log tracking
-  lastInputTime: null,
-  lastTextLength: 0,
-  lastWordCount: 0,
-  pendingBurstChars: 0,
-  burstCheckInterval: null,
-  sessionStartTime: null,
-  _visibilityHandler: null,
-  _blurHandler: null,
-  _focusHandler: null,
-
-  // Teacher session
-  selectedAssignmentId: null,
-  allSubmissions: [],
-  expandedSubId: null,
+  teacher: null, teacherProfile: null,
+  submissionId: null, assignmentId: null, assignmentTitle: null,
+  timeLimitSeconds: 0, studentName: null, period: null, startedAt: null,
+  timerInterval: null, autosaveInterval: null, processLog: [], isSubmitted: false,
+  firstKeystrokeLogged: false, _blurStartTime: null,
+  lastInputTime: null, lastTextLength: 0, lastWordCount: 0,
+  pendingBurstChars: 0, burstCheckInterval: null,
+  _visibilityHandler: null, _blurHandler: null, _focusHandler: null,
+  selectedAssignmentId: null, allSubmissions: [], expandedSubId: null,
 };
 
-// ═══════════════════════════════════════════════════
-// SCREEN ROUTER
-// ═══════════════════════════════════════════════════
-function showScreen(name) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const target = document.getElementById('screen-' + name);
-  if (target) target.classList.add('active');
+// ── BOOT ──
+async function boot() {
+  const hash = window.location.hash;
+  if (hash.includes('type=recovery') || hash.includes('type=invite')) {
+    const { data, error } = await db.auth.getSessionFromUrl();
+    window.history.replaceState(null, '', window.location.pathname);
+    if (!error && data?.session) { showScreen('new-password'); return; }
+    showScreen('teacher-login'); return;
+  }
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    STATE.teacher = session.user;
+    document.getElementById('dash-user-email').textContent = session.user.email;
+    await loadDashboard();
+    showScreen('dashboard');
+    return;
+  }
+  showScreen('landing');
 }
 
-// ═══════════════════════════════════════════════════
-// TOAST
-// ═══════════════════════════════════════════════════
+db.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'PASSWORD_RECOVERY') { showScreen('new-password'); }
+});
+
+// ── SCREEN ROUTER ──
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const t = document.getElementById('screen-' + name);
+  if (t) t.classList.add('active');
+}
+
+// ── TOAST ──
 function toast(msg, type = 'default', ms = 3000) {
   const icons = { success: '✓', error: '✕', warning: '⚠', default: 'ℹ' };
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<span>${icons[type] || 'ℹ'}</span><span>${msg}</span>`;
+  el.innerHTML = `<span>${icons[type]||'ℹ'}</span><span>${msg}</span>`;
   document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => {
-    el.style.transition = 'opacity 300ms';
-    el.style.opacity = '0';
-    setTimeout(() => el.remove(), 300);
-  }, ms);
+  setTimeout(() => { el.style.transition='opacity 300ms'; el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, ms);
 }
 
-// ═══════════════════════════════════════════════════
-// MODAL
-// ═══════════════════════════════════════════════════
-function openModal(html) {
-  document.getElementById('modal-box').innerHTML = html;
-  document.getElementById('modal-overlay').classList.add('visible');
-}
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('visible');
-}
-document.getElementById('modal-overlay').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeModal();
-});
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+// ── MODAL ──
+function openModal(html) { document.getElementById('modal-box').innerHTML=html; document.getElementById('modal-overlay').classList.add('visible'); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('visible'); }
+document.getElementById('modal-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
 
-// ═══════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════
-function countWords(text) {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
-}
+// ── HELPERS ──
+function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
+function elapsedSeconds() { if(!STATE.startedAt) return 0; return Math.floor((Date.now()-new Date(STATE.startedAt).getTime())/1000); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatTime(iso) { if(!iso) return '—'; try { return new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return iso; } }
+function formatElapsed(secs) { if(secs==null) return '—'; const m=Math.floor(secs/60),s=secs%60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 
-function elapsedSeconds() {
-  if (!STATE.startedAt) return 0;
-  return Math.floor((Date.now() - new Date(STATE.startedAt).getTime()) / 1000);
-}
-
-function esc(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function formatTime(iso) {
-  if (!iso) return '—';
+// ── TEACHER SIGN UP ──
+async function teacherSignUp() {
+  const name=document.getElementById('su-name').value.trim();
+  const school=document.getElementById('su-school').value.trim();
+  const email=document.getElementById('su-email').value.trim();
+  const pw=document.getElementById('su-password').value;
+  const status=document.getElementById('su-status');
+  const btn=document.getElementById('su-btn');
+  status.className='status-msg';
+  if(!email||!pw){status.className='status-msg error';status.textContent='Email and password are required.';return;}
+  if(pw.length<8){status.className='status-msg error';status.textContent='Password must be at least 8 characters.';return;}
+  btn.disabled=true; btn.textContent='Creating account…';
   try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  } catch { return iso; }
+    const {data,error} = await db.auth.signUp({email,password:pw});
+    if(error) throw error;
+    if(data.user) {
+      await db.from('teachers').update({display_name:name||null,school_name:school||null}).eq('id',data.user.id);
+    }
+    document.getElementById('confirm-email-display').textContent=email;
+    showScreen('check-email');
+  } catch(err) {
+    status.className='status-msg error';
+    status.textContent=err.message||'Sign up failed.';
+  } finally { btn.disabled=false; btn.textContent='Create account →'; }
 }
 
-function formatElapsed(secs) {
-  if (secs === undefined || secs === null) return '—';
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+// ── TEACHER SIGN IN ──
+async function teacherLogin() {
+  const email=document.getElementById('t-email').value.trim();
+  const pw=document.getElementById('t-password').value;
+  const status=document.getElementById('t-status');
+  const btn=document.getElementById('t-login-btn');
+  status.className='status-msg';
+  if(!email||!pw){status.className='status-msg error';status.textContent='Please enter your email and password.';return;}
+  btn.disabled=true; btn.textContent='Signing in…';
+  try {
+    const {data,error}=await db.auth.signInWithPassword({email,password:pw});
+    if(error) throw error;
+    STATE.teacher=data.user;
+    document.getElementById('dash-user-email').textContent=data.user.email;
+    document.getElementById('t-password').value='';
+    status.className='status-msg';
+    await loadDashboard();
+    showScreen('dashboard');
+  } catch(err) {
+    status.className='status-msg error';
+    status.textContent=err.message==='Invalid login credentials'?'Incorrect email or password.':err.message||'Sign in failed.';
+  } finally { btn.disabled=false; btn.textContent='Sign in →'; }
 }
 
-// ═══════════════════════════════════════════════════
-// STUDENT LOGIN
-// ═══════════════════════════════════════════════════
+// ── TEACHER SIGN OUT ──
+async function teacherLogout() {
+  await db.auth.signOut();
+  STATE.teacher=null; STATE.selectedAssignmentId=null; STATE.allSubmissions=[];
+  showScreen('landing'); toast('Signed out','default',2000);
+}
+
+// ── PASSWORD RESET ──
+async function requestReset() {
+  const email=document.getElementById('reset-email').value.trim();
+  const status=document.getElementById('reset-status');
+  const btn=document.getElementById('reset-btn');
+  status.className='status-msg';
+  if(!email){status.className='status-msg error';status.textContent='Please enter your email address.';return;}
+  btn.disabled=true; btn.textContent='Sending…';
+  try {
+    const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});
+    if(error) throw error;
+    status.className='status-msg success'; status.textContent='Reset link sent — check your email.';
+  } catch(err) {
+    status.className='status-msg error'; status.textContent=err.message||'Failed to send reset link.';
+  } finally { btn.disabled=false; btn.textContent='Send reset link →'; }
+}
+
+// ── SET NEW PASSWORD ──
+async function setNewPassword() {
+  const pw=document.getElementById('new-password').value;
+  const confirm=document.getElementById('new-password-confirm').value;
+  const status=document.getElementById('newpw-status');
+  const btn=document.getElementById('newpw-btn');
+  status.className='status-msg';
+  if(!pw||!confirm){status.className='status-msg error';status.textContent='Please enter and confirm your new password.';return;}
+  if(pw.length<8){status.className='status-msg error';status.textContent='Password must be at least 8 characters.';return;}
+  if(pw!==confirm){status.className='status-msg error';status.textContent='Passwords do not match.';return;}
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const {error}=await db.auth.updateUser({password:pw});
+    if(error) throw error;
+    toast('Password updated — please sign in.','success',4000);
+    showScreen('teacher-login');
+  } catch(err) {
+    status.className='status-msg error'; status.textContent=err.message||'Failed to set password.';
+  } finally { btn.disabled=false; btn.textContent='Set password →'; }
+}
+
+// ── STUDENT LOGIN ──
 async function studentLogin() {
-  const name     = document.getElementById('s-name').value.trim();
-  const period   = document.getElementById('s-period').value.trim();
-  const password = document.getElementById('s-password').value.trim().toUpperCase();
-  const statusEl = document.getElementById('s-status');
-  const btn      = document.getElementById('s-login-btn');
-
-  statusEl.className = 'status-msg';
-  statusEl.textContent = '';
-
-  if (!name || !password) {
-    statusEl.className = 'status-msg error';
-    statusEl.textContent = 'Please enter both a join code and your name.';
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Checking…';
-
+  const name=document.getElementById('s-name').value.trim();
+  const period=document.getElementById('s-period').value.trim();
+  const password=document.getElementById('s-password').value.trim().toUpperCase();
+  const statusEl=document.getElementById('s-status');
+  const btn=document.getElementById('s-login-btn');
+  statusEl.className='status-msg';
+  if(!name||!password){statusEl.className='status-msg error';statusEl.textContent='Please enter both a join code and your name.';return;}
+  btn.disabled=true; btn.textContent='Checking…';
   try {
-    const { data: assignments, error: aErr } = await db
-      .from('assignments')
-      .select('*')
-      .eq('is_active', true)
-      .eq('password', password);
-
-    if (aErr) throw aErr;
-
-    if (!assignments || assignments.length === 0) {
-      statusEl.className = 'status-msg error';
-      statusEl.textContent = 'No active session found with that join code. Ask your teacher to check.';
-      return;
-    }
-
-    const assignment = assignments[0];
-
-    const { data: existing, error: sErr } = await db
-      .from('submissions')
-      .select('*')
-      .eq('assignment_id', assignment.id)
-      .eq('student_name', name)
-      .maybeSingle();
-
-    if (sErr) throw sErr;
-
-    if (existing) {
-      if (existing.is_submitted) {
-        loadSubmittedScreen(existing, assignment);
-        showScreen('submitted');
-        return;
-      }
-      STATE.submissionId    = existing.id;
-      STATE.assignmentId    = assignment.id;
-      STATE.assignmentTitle = assignment.title;
-      STATE.timeLimitSeconds = assignment.time_limit_minutes * 60;
-      STATE.studentName     = name;
-      STATE.period          = period;
-      STATE.startedAt       = existing.started_at;
-      STATE.processLog      = existing.process_log || [];
-      STATE.isSubmitted     = false;
-
-      showScreen('transparency');
-
+    const {data:assignments,error:aErr}=await db.from('assignments').select('*').eq('is_active',true).eq('password',password);
+    if(aErr) throw aErr;
+    if(!assignments||!assignments.length){statusEl.className='status-msg error';statusEl.textContent='No active session found with that join code. Ask your teacher to check.';return;}
+    const assignment=assignments[0];
+    const {data:existing,error:sErr}=await db.from('submissions').select('*').eq('assignment_id',assignment.id).eq('student_name',name).maybeSingle();
+    if(sErr) throw sErr;
+    if(existing) {
+      if(existing.is_submitted){loadSubmittedScreen(existing);showScreen('submitted');return;}
+      STATE.submissionId=existing.id; STATE.assignmentId=assignment.id;
+      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=assignment.time_limit_minutes*60;
+      STATE.studentName=name; STATE.period=period; STATE.startedAt=existing.started_at;
+      STATE.processLog=existing.process_log||[]; STATE.isSubmitted=false;
     } else {
-      const now = new Date().toISOString();
-      const { data: newSub, error: nErr } = await db
-        .from('submissions')
-        .insert({
-          assignment_id: assignment.id,
-          student_name:  name,
-          class_period:  period,
-          essay_text:    '',
-          word_count:    0,
-          process_log:   [],
-          started_at:    now,
-          is_submitted:  false,
-        })
-        .select()
-        .single();
-
-      if (nErr) throw nErr;
-
-      STATE.submissionId    = newSub.id;
-      STATE.assignmentId    = assignment.id;
-      STATE.assignmentTitle = assignment.title;
-      STATE.timeLimitSeconds = assignment.time_limit_minutes * 60;
-      STATE.studentName     = name;
-      STATE.period          = period;
-      STATE.startedAt       = now;
-      STATE.processLog      = [];
-      STATE.isSubmitted     = false;
-
-      showScreen('transparency');
+      const now=new Date().toISOString();
+      const {data:newSub,error:nErr}=await db.from('submissions').insert({
+        assignment_id:assignment.id,student_name:name,class_period:period,
+        essay_text:'',word_count:0,process_log:[],started_at:now,is_submitted:false,
+      }).select().single();
+      if(nErr) throw nErr;
+      STATE.submissionId=newSub.id; STATE.assignmentId=assignment.id;
+      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=assignment.time_limit_minutes*60;
+      STATE.studentName=name; STATE.period=period; STATE.startedAt=now;
+      STATE.processLog=[]; STATE.isSubmitted=false;
     }
-
-  } catch (err) {
-    console.error(err);
-    statusEl.className = 'status-msg error';
-    statusEl.textContent = 'Something went wrong. Please try again or tell your teacher: ' + err.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Continue →';
-  }
+    showScreen('transparency');
+  } catch(err) {
+    statusEl.className='status-msg error'; statusEl.textContent='Something went wrong: '+err.message;
+  } finally { btn.disabled=false; btn.textContent='Continue →'; }
 }
 
-// Called from transparency screen "Begin Writing" button
-function beginWriting() {
-  enterWritingMode('');
-}
+function beginWriting() { enterWritingMode(''); }
 
-// ═══════════════════════════════════════════════════
-// ENTER WRITING MODE
-// ═══════════════════════════════════════════════════
+// ── WRITING MODE ──
 function enterWritingMode(savedText) {
-  document.getElementById('writing-title').textContent = STATE.assignmentTitle;
-  document.getElementById('writing-student').textContent =
-    STATE.period ? `${STATE.studentName} · ${STATE.period}` : STATE.studentName;
-
-  const editor = document.getElementById('essay-textarea');
-  editor.value = savedText || '';
-  editor.disabled = false;
-  STATE.lastTextLength = (savedText || '').length;
-  updateWordCountDisplay();
-
-  showScreen('writing');
-
-  const remaining = STATE.timeLimitSeconds - elapsedSeconds();
-  if (remaining <= 0) {
-    autoSubmit('Time had already elapsed. Your essay has been submitted automatically.');
-    return;
-  }
-
+  document.getElementById('writing-title').textContent=STATE.assignmentTitle;
+  document.getElementById('writing-student').textContent=STATE.period?`${STATE.studentName} · ${STATE.period}`:STATE.studentName;
+  const editor=document.getElementById('essay-textarea');
+  editor.value=savedText||''; editor.disabled=false;
+  STATE.lastTextLength=(savedText||'').length; STATE.firstKeystrokeLogged=false;
+  updateWordCountDisplay(); showScreen('writing');
+  const remaining=STATE.timeLimitSeconds-elapsedSeconds();
+  if(remaining<=0){autoSubmit('Time had already elapsed. Your essay has been submitted automatically.');return;}
   startTimer();
-  STATE.autosaveInterval    = setInterval(autosave, 30000);
-  STATE.burstCheckInterval  = setInterval(checkBurstAndIdle, 3000);
-
+  STATE.autosaveInterval=setInterval(autosave,30000);
+  STATE.burstCheckInterval=setInterval(checkBurstAndIdle,3000);
   attachProcessListeners(editor);
-
-  // Tab visibility
-  STATE._visibilityHandler = () => {
-    if (document.hidden) {
-      STATE._blurStartTime = Date.now();
-      logEvent('window_blur', { content_preview: 'Window left focus' });
-    } else if (STATE._blurStartTime) {
-      const absenceSecs = Math.round((Date.now() - STATE._blurStartTime) / 1000);
-      logEvent('window_focus', {
-        char_count: absenceSecs,
-        content_preview: `Window returned — ${absenceSecs}s away`,
-      });
-      STATE._blurStartTime = null;
-    }
+  STATE._visibilityHandler=()=>{
+    if(document.hidden){STATE._blurStartTime=Date.now();logEvent('window_blur',{content_preview:'Window left focus'});}
+    else if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEvent('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}
   };
-  document.addEventListener('visibilitychange', STATE._visibilityHandler);
-
-  // Window blur (separate app switch)
-  STATE._blurHandler = () => {
-    if (!document.hidden) {
-      STATE._blurStartTime = Date.now();
-      logEvent('window_blur', { content_preview: 'Window left focus' });
-    }
-  };
-  STATE._focusHandler = () => {
-    if (STATE._blurStartTime) {
-      const absenceSecs = Math.round((Date.now() - STATE._blurStartTime) / 1000);
-      logEvent('window_focus', {
-        char_count: absenceSecs,
-        content_preview: `Window returned — ${absenceSecs}s away`,
-      });
-      STATE._blurStartTime = null;
-    }
-  };
-  window.addEventListener('blur', STATE._blurHandler);
-  window.addEventListener('focus', STATE._focusHandler);
-
-  setTimeout(() => {
-    const ta = document.getElementById('essay-textarea');
-    if (ta) ta.focus();
-  }, 100);
+  document.addEventListener('visibilitychange',STATE._visibilityHandler);
+  STATE._blurHandler=()=>{if(!document.hidden){STATE._blurStartTime=Date.now();logEvent('window_blur',{content_preview:'Window left focus'});}};
+  STATE._focusHandler=()=>{if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEvent('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}};
+  window.addEventListener('blur',STATE._blurHandler);
+  window.addEventListener('focus',STATE._focusHandler);
+  setTimeout(()=>{const ta=document.getElementById('essay-textarea');if(ta)ta.focus();},100);
 }
 
-// ═══════════════════════════════════════════════════
-// TIMER
-// ═══════════════════════════════════════════════════
+// ── TIMER ──
 function startTimer() {
-  if (STATE.timerInterval) clearInterval(STATE.timerInterval);
+  if(STATE.timerInterval) clearInterval(STATE.timerInterval);
   updateTimerDisplay();
-  STATE.timerInterval = setInterval(() => {
-    const remaining = STATE.timeLimitSeconds - elapsedSeconds();
-    updateTimerDisplay(remaining);
-    if (remaining <= 0) {
-      clearInterval(STATE.timerInterval);
-      autoSubmit('Time is up. Your essay has been submitted automatically.');
-    }
-  }, 1000);
+  STATE.timerInterval=setInterval(()=>{
+    const r=STATE.timeLimitSeconds-elapsedSeconds();
+    updateTimerDisplay(r);
+    if(r<=0){clearInterval(STATE.timerInterval);autoSubmit('Time is up. Your essay has been submitted automatically.');}
+  },1000);
 }
-
-function updateTimerDisplay(remainingOverride) {
-  const el = document.getElementById('timer-display');
-  if (!el) return;
-  const remaining = remainingOverride !== undefined
-    ? remainingOverride
-    : STATE.timeLimitSeconds - elapsedSeconds();
-  const secs = Math.max(0, remaining);
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  el.classList.remove('warning', 'danger');
-  if (secs <= 180)      el.classList.add('danger');
-  else if (secs <= 600) el.classList.add('warning');
+function updateTimerDisplay(ro) {
+  const el=document.getElementById('timer-display'); if(!el) return;
+  const r=ro!==undefined?ro:STATE.timeLimitSeconds-elapsedSeconds();
+  const s=Math.max(0,r),m=Math.floor(s/60),sec=s%60;
+  el.textContent=`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  el.classList.remove('warning','danger');
+  if(s<=180) el.classList.add('danger'); else if(s<=600) el.classList.add('warning');
 }
-
-// ═══════════════════════════════════════════════════
-// WORD COUNT
-// ═══════════════════════════════════════════════════
 function updateWordCountDisplay() {
-  const ta = document.getElementById('essay-textarea');
-  if (!ta) return;
-  document.getElementById('word-count').textContent = countWords(ta.value);
+  const ta=document.getElementById('essay-textarea'); if(!ta) return;
+  document.getElementById('word-count').textContent=countWords(ta.value);
 }
 
-// ═══════════════════════════════════════════════════
-// AUTOSAVE
-// ═══════════════════════════════════════════════════
+// ── AUTOSAVE ──
 async function autosave() {
-  if (!STATE.submissionId || STATE.isSubmitted) return;
-  const ta = document.getElementById('essay-textarea');
-  if (!ta) return;
-  const text = ta.value;
-  const currentWordCount = countWords(text);
-
-  // Word drop detection
-  if (STATE.lastWordCount > 50 && (STATE.lastWordCount - currentWordCount) >= 50) {
-    logEvent('word_drop', {
-      char_count: STATE.lastWordCount - currentWordCount,
-      content_preview: `Word count dropped from ${STATE.lastWordCount} to ${currentWordCount}`,
-    });
-  }
-  STATE.lastWordCount = currentWordCount;
-
-  const indicator = document.getElementById('autosave-indicator');
-  if (indicator) { indicator.className = 'autosave-indicator saving'; indicator.textContent = 'Saving…'; }
-
+  if(!STATE.submissionId||STATE.isSubmitted) return;
+  const ta=document.getElementById('essay-textarea'); if(!ta) return;
+  const text=ta.value, wc=countWords(text);
+  if(STATE.lastWordCount>50&&(STATE.lastWordCount-wc)>=50) logEvent('word_drop',{char_count:STATE.lastWordCount-wc,content_preview:`Word count dropped from ${STATE.lastWordCount} to ${wc}`});
+  STATE.lastWordCount=wc;
+  const ind=document.getElementById('autosave-indicator');
+  if(ind){ind.className='autosave-indicator saving';ind.textContent='Saving…';}
   try {
-    await db.from('submissions').update({
-      essay_text:    text,
-      word_count:    currentWordCount,
-      process_log:   STATE.processLog,
-      last_saved_at: new Date().toISOString(),
-    }).eq('id', STATE.submissionId);
-
-    if (indicator) {
-      indicator.className = 'autosave-indicator saved';
-      indicator.textContent = 'Saved ✓';
-      setTimeout(() => {
-        if (indicator) { indicator.className = 'autosave-indicator'; indicator.textContent = 'Autosave active'; }
-      }, 2000);
-    }
-  } catch (err) {
-    console.error('Autosave failed:', err);
-    if (indicator) { indicator.className = 'autosave-indicator'; indicator.textContent = 'Save failed — retrying…'; }
+    await db.from('submissions').update({essay_text:text,word_count:wc,process_log:STATE.processLog,last_saved_at:new Date().toISOString()}).eq('id',STATE.submissionId);
+    if(ind){ind.className='autosave-indicator saved';ind.textContent='Saved ✓';setTimeout(()=>{if(ind){ind.className='autosave-indicator';ind.textContent='Autosave active';}},2000);}
+  } catch(err) {
+    console.error('Autosave failed:',err);
+    if(ind){ind.className='autosave-indicator';ind.textContent='Save failed — retrying…';}
   }
 }
+async function manualSave(){await autosave();toast('Saved','success',1500);}
 
-async function manualSave() {
-  await autosave();
-  toast('Saved', 'success', 1500);
-}
-
-// ═══════════════════════════════════════════════════
-// PROCESS LOGGING
-// ═══════════════════════════════════════════════════
+// ── PROCESS LOGGING ──
 function attachProcessListeners(editor) {
-
-  editor.addEventListener('paste', (e) => {
-    const pastedText = (e.clipboardData || window.clipboardData).getData('text') || '';
-    if (pastedText.length === 0) return;
-    logEvent('paste', {
-      char_count:      pastedText.length,
-      content_preview: pastedText.slice(0, 80),
-    });
-    // Schedule paste-then-delete check
-    const charCountAtPaste = editor.value.length + pastedText.length;
-    setTimeout(() => checkPasteThenDelete(charCountAtPaste, pastedText.length), 90000);
+  editor.addEventListener('keydown',()=>{
+    if(!STATE.firstKeystrokeLogged){STATE.firstKeystrokeLogged=true;logEvent('first_keystroke',{content_preview:`Writing began at ${formatElapsed(elapsedSeconds())}`});}
   });
-
-  editor.addEventListener('input', () => {
-    const now = Date.now();
-    const currentLength = editor.value.length;
-    const delta = currentLength - STATE.lastTextLength;
-
-    if (delta <= -100) {
-      logEvent('delete_burst', { char_count: Math.abs(delta) });
-    }
-    if (delta > 0) STATE.pendingBurstChars += delta;
-    STATE.lastInputTime  = now;
-    STATE.lastTextLength = currentLength;
-    updateWordCountDisplay();
+  editor.addEventListener('paste',(e)=>{
+    const p=(e.clipboardData||window.clipboardData).getData('text')||'';
+    if(!p.length) return;
+    logEvent('paste',{char_count:p.length,content_preview:p.slice(0,80)});
+    const cap=editor.value.length+p.length;
+    setTimeout(()=>checkPasteThenDelete(cap),90000);
+  });
+  editor.addEventListener('input',()=>{
+    const now=Date.now(),cur=editor.value.length,d=cur-STATE.lastTextLength;
+    if(d<=-100) logEvent('delete_burst',{char_count:Math.abs(d)});
+    if(d>0) STATE.pendingBurstChars+=d;
+    STATE.lastInputTime=now; STATE.lastTextLength=cur; updateWordCountDisplay();
   });
 }
-
-function checkPasteThenDelete(charCountAtPaste, pastedLength) {
-  const ta = document.getElementById('essay-textarea');
-  if (!ta || STATE.isSubmitted) return;
-  const currentLength = ta.value.length;
-  const deleted = charCountAtPaste - currentLength;
-  if (deleted >= 100) {
-    logEvent('paste_then_delete', {
-      char_count: deleted,
-      content_preview: `Content removed shortly after paste`,
-    });
-  }
+function checkPasteThenDelete(cap) {
+  const ta=document.getElementById('essay-textarea'); if(!ta||STATE.isSubmitted) return;
+  const del=cap-ta.value.length;
+  if(del>=100) logEvent('paste_then_delete',{char_count:del,content_preview:'Content removed shortly after paste'});
 }
-
-let idleLogged = false;
+let idleLogged=false;
 function checkBurstAndIdle() {
-  if (STATE.isSubmitted) return;
-  const now = Date.now();
-  const secsSinceInput = STATE.lastInputTime
-    ? (now - STATE.lastInputTime) / 1000 : Infinity;
-
-  if (secsSinceInput > 5 && STATE.pendingBurstChars >= 50) {
-    logEvent('burst', { char_count: STATE.pendingBurstChars });
-    STATE.pendingBurstChars = 0;
-  }
-  if (secsSinceInput > 120 && !idleLogged && STATE.lastInputTime) {
-    logEvent('idle', {
-      content_preview: `Gap of ~${Math.round(secsSinceInput / 60)} minute(s)`,
-    });
-    idleLogged = true;
-  }
-  if (secsSinceInput < 30 && idleLogged) idleLogged = false;
+  if(STATE.isSubmitted) return;
+  const now=Date.now(),ssi=STATE.lastInputTime?(now-STATE.lastInputTime)/1000:Infinity;
+  if(ssi>5&&STATE.pendingBurstChars>=50){logEvent('burst',{char_count:STATE.pendingBurstChars});STATE.pendingBurstChars=0;}
+  if(ssi>120&&!idleLogged&&STATE.lastInputTime){logEvent('idle',{content_preview:`Gap of ~${Math.round(ssi/60)} minute(s)`});idleLogged=true;}
+  if(ssi<30&&idleLogged) idleLogged=false;
+}
+function logEvent(type,extras={}) {
+  STATE.processLog.push({type,timestamp:new Date().toISOString(),elapsed_seconds:elapsedSeconds(),char_count:extras.char_count||0,content_preview:extras.content_preview||''});
 }
 
-function logEvent(type, extras = {}) {
-  const entry = {
-    type,
-    timestamp: new Date().toISOString(),
-    elapsed_seconds: elapsedSeconds(),
-    char_count: extras.char_count || 0,
-    content_preview: extras.content_preview || '',
-  };
-  STATE.processLog.push(entry);
-}
-
-// ═══════════════════════════════════════════════════
-// SUBMIT ESSAY
-// ═══════════════════════════════════════════════════
+// ── SUBMIT ──
 function confirmSubmit() {
-  openModal(`
-    <div class="modal-header">
-      <h3>Submit your essay?</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      Once you submit, you <strong>cannot edit</strong> your essay. Make sure you are finished writing.
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Keep Writing</button>
-      <button class="btn btn-primary" onclick="closeModal(); submitEssay()">Submit →</button>
-    </div>
-  `);
+  openModal(`<div class="modal-header"><h3>Submit your essay?</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">Once you submit, you <strong>cannot edit</strong> your essay.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Keep Writing</button><button class="btn btn-primary" onclick="closeModal();submitEssay()">Submit →</button></div>`);
 }
-
-async function autoSubmit(message) {
-  toast(message, 'warning', 6000);
-  await submitEssay(true);
-}
-
-async function submitEssay(isAutoSubmit = false) {
-  if (STATE.isSubmitted) return;
-  STATE.isSubmitted = true;
-
-  clearInterval(STATE.timerInterval);
-  clearInterval(STATE.autosaveInterval);
-  clearInterval(STATE.burstCheckInterval);
-
-  if (STATE._visibilityHandler) document.removeEventListener('visibilitychange', STATE._visibilityHandler);
-  if (STATE._blurHandler)  window.removeEventListener('blur', STATE._blurHandler);
-  if (STATE._focusHandler) window.removeEventListener('focus', STATE._focusHandler);
-
-  if (STATE.pendingBurstChars >= 50) {
-    logEvent('burst', { char_count: STATE.pendingBurstChars });
-    STATE.pendingBurstChars = 0;
-  }
-
-  const ta = document.getElementById('essay-textarea');
-  const finalText = ta ? ta.value : '';
-  if (ta) ta.disabled = true;
-
+async function autoSubmit(message){toast(message,'warning',6000);await submitEssay(true);}
+async function submitEssay(isAuto=false) {
+  if(STATE.isSubmitted) return;
+  STATE.isSubmitted=true;
+  clearInterval(STATE.timerInterval); clearInterval(STATE.autosaveInterval); clearInterval(STATE.burstCheckInterval);
+  if(STATE._visibilityHandler) document.removeEventListener('visibilitychange',STATE._visibilityHandler);
+  if(STATE._blurHandler) window.removeEventListener('blur',STATE._blurHandler);
+  if(STATE._focusHandler) window.removeEventListener('focus',STATE._focusHandler);
+  if(STATE.pendingBurstChars>=50){logEvent('burst',{char_count:STATE.pendingBurstChars});STATE.pendingBurstChars=0;}
+  const ta=document.getElementById('essay-textarea');
+  const finalText=ta?ta.value:''; if(ta) ta.disabled=true;
   try {
-    await db.from('submissions').update({
-      essay_text:    finalText,
-      word_count:    countWords(finalText),
-      process_log:   STATE.processLog,
-      submitted_at:  new Date().toISOString(),
-      is_submitted:  true,
-      last_saved_at: new Date().toISOString(),
-    }).eq('id', STATE.submissionId);
-
+    await db.from('submissions').update({essay_text:finalText,word_count:countWords(finalText),process_log:STATE.processLog,submitted_at:new Date().toISOString(),is_submitted:true,last_saved_at:new Date().toISOString()}).eq('id',STATE.submissionId);
     showSubmittedScreen(finalText);
-
-  } catch (err) {
-    console.error('Submit failed:', err);
-    STATE.isSubmitted = false;
-    toast('Submission failed. Please try again: ' + err.message, 'error', 8000);
+  } catch(err) {
+    console.error('Submit failed:',err); STATE.isSubmitted=false;
+    toast('Submission failed. Please try again: '+err.message,'error',8000);
   }
 }
-
 function showSubmittedScreen(text) {
   renderProcessSummary(STATE.processLog);
-  document.getElementById('submitted-essay').value = text || '';
-  showScreen('submitted');
-  copyToClipboard(true);
+  document.getElementById('submitted-essay').value=text||'';
+  showScreen('submitted'); copyToClipboard(true);
 }
-
-function loadSubmittedScreen(submission, assignment) {
-  renderProcessSummary(submission.process_log || []);
-  document.getElementById('submitted-essay').value = submission.essay_text || '';
+function loadSubmittedScreen(sub) {
+  renderProcessSummary(sub.process_log||[]);
+  document.getElementById('submitted-essay').value=sub.essay_text||'';
 }
-
 function renderProcessSummary(log) {
-  const el = document.getElementById('process-summary');
-  if (!el) return;
-  const pastes = log.filter(e => e.type === 'paste');
-  const blurs  = log.filter(e => e.type === 'window_blur');
-  const bursts = log.filter(e => e.type === 'burst');
-  el.innerHTML = `
-    <h3>Your Writing Process</h3>
-    <div class="process-summary-items">
-      <div class="ps-item"><strong>${bursts.length}</strong> typing burst${bursts.length !== 1 ? 's' : ''}</div>
-      <div class="ps-item"><strong>${pastes.length}</strong> paste event${pastes.length !== 1 ? 's' : ''}</div>
-      <div class="ps-item"><strong>${blurs.length}</strong> time${blurs.length !== 1 ? 's' : ''} window left focus</div>
-    </div>
-  `;
+  const el=document.getElementById('process-summary'); if(!el) return;
+  const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur'),bursts=log.filter(e=>e.type==='burst');
+  el.innerHTML=`<h3>Your Writing Process</h3><div class="process-summary-items"><div class="ps-item"><strong>${bursts.length}</strong> typing burst${bursts.length!==1?'s':''}</div><div class="ps-item"><strong>${pastes.length}</strong> paste event${pastes.length!==1?'s':''}</div><div class="ps-item"><strong>${blurs.length}</strong> time${blurs.length!==1?'s':''} window left focus</div></div>`;
+}
+async function copyToClipboard(silent=false) {
+  const ta=document.getElementById('submitted-essay'); if(!ta) return;
+  try{await navigator.clipboard.writeText(ta.value);if(!silent) toast('Essay copied to clipboard','success');}
+  catch(e){ta.select();document.execCommand('copy');if(!silent) toast('Essay copied','success');}
 }
 
-async function copyToClipboard(silent = false) {
-  const ta = document.getElementById('submitted-essay');
-  if (!ta) return;
-  try {
-    await navigator.clipboard.writeText(ta.value);
-    if (!silent) toast('Essay copied to clipboard', 'success');
-  } catch (e) {
-    ta.select();
-    document.execCommand('copy');
-    if (!silent) toast('Essay copied', 'success');
-  }
-}
-
-// ═══════════════════════════════════════════════════
-// TEACHER LOGIN
-// ═══════════════════════════════════════════════════
-async function teacherLogin() {
-  const pw = document.getElementById('t-password').value;
-  const statusEl = document.getElementById('t-status');
-
-  const encoder = new TextEncoder();
-  const data = encoder.encode(pw);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray  = Array.from(new Uint8Array(hashBuffer));
-  const hashHex    = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
-
-  if (hashHex === TEACHER_PASSWORD_HASH) {
-    statusEl.className = 'status-msg';
-    document.getElementById('t-password').value = '';
-    loadDashboard();
-    showScreen('dashboard');
-  } else {
-    statusEl.className = 'status-msg error';
-    statusEl.textContent = 'Incorrect password.';
-  }
-}
-
-// ═══════════════════════════════════════════════════
-// TEACHER DASHBOARD
-// ═══════════════════════════════════════════════════
+// ── TEACHER DASHBOARD ──
 async function loadDashboard() {
   try {
-    const { data, error } = await db
-      .from('assignments')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    renderAssignmentList(data || []);
-
-    if (STATE.selectedAssignmentId) {
-      loadSubmissions(STATE.selectedAssignmentId);
-    }
-  } catch (err) {
-    toast('Failed to load assignments: ' + err.message, 'error');
-  }
+    const {data:{user}}=await db.auth.getUser();
+    if(!user){showScreen('teacher-login');return;}
+    const {data,error}=await db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false});
+    if(error) throw error;
+    renderAssignmentList(data||[]);
+    if(STATE.selectedAssignmentId) loadSubmissions(STATE.selectedAssignmentId);
+  } catch(err) { toast('Failed to load assignments: '+err.message,'error'); }
 }
-
-function refreshDashboard() {
-  loadDashboard();
-  toast('Refreshed', 'default', 1500);
-}
+function refreshDashboard(){loadDashboard();toast('Refreshed','default',1500);}
 
 function renderAssignmentList(assignments) {
-  const el = document.getElementById('assignment-list');
-  if (!assignments.length) {
-    el.innerHTML = '<div class="empty-panel">No assignments yet. Create one above.</div>';
-    return;
-  }
-  el.innerHTML = assignments.map(a => `
-    <div class="assignment-item ${a.is_active ? 'active-assignment' : ''} ${STATE.selectedAssignmentId === a.id ? 'selected' : ''}"
-         onclick="selectAssignment('${a.id}')">
+  const el=document.getElementById('assignment-list');
+  if(!assignments.length){el.innerHTML='<div class="empty-panel">No assignments yet. Create one above.</div>';return;}
+  el.innerHTML=assignments.map(a=>`
+    <div class="assignment-item ${a.is_active?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
-      <div class="assignment-item-meta">${a.time_limit_minutes} min · Code: <code style="font-family:'DM Mono',monospace">${esc(a.password)}</code></div>
-      <div style="margin-top:0.35rem">
-        ${a.is_active
-          ? `<span class="pill pill-active">Active</span>`
-          : `<span class="pill pill-inactive">Inactive</span>`
-        }
-      </div>
+      <div class="assignment-item-meta">${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'} · Code: <code style="font-family:'DM Mono',monospace">${esc(a.password||a.join_code||'—')}</code></div>
+      <div style="margin-top:0.35rem">${a.is_active?`<span class="pill pill-active">Active</span>`:`<span class="pill pill-inactive">Inactive</span>`}</div>
       <div class="assignment-item-actions" onclick="event.stopPropagation()">
         ${a.is_active
-          ? `<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem"
-               onclick="toggleActive('${a.id}', false)">Deactivate</button>`
-          : `<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem"
-               onclick="toggleActive('${a.id}', true)">Activate</button>`
-        }
-        <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem"
-          onclick="deleteAssignment('${a.id}', '${esc(a.title)}')">Delete</button>
+          ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="toggleActive('${a.id}',false)">Deactivate</button>`
+          :`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="toggleActive('${a.id}',true)">Activate</button>`}
+        <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 async function createAssignment() {
-  const title    = document.getElementById('a-title').value.trim();
-  const password = document.getElementById('a-password').value.trim().toUpperCase();
-  const minutes  = parseInt(document.getElementById('a-time').value) || 0;
-
-  if (!title || !password || !minutes) {
-    toast('Please fill in all three fields', 'warning');
-    return;
-  }
-  if (minutes < 5 || minutes > 300) {
-    toast('Time must be between 5 and 300 minutes', 'warning');
-    return;
-  }
+  const {data:{user}}=await db.auth.getUser();
+  if(!user){toast('Please sign in again.','error');return;}
+  const title=document.getElementById('a-title').value.trim();
+  const password=document.getElementById('a-password').value.trim().toUpperCase();
+  const minutes=parseInt(document.getElementById('a-time').value)||0;
+  if(!title||!password||!minutes){toast('Please fill in all three fields','warning');return;}
+  if(minutes<5||minutes>300){toast('Time must be between 5 and 300 minutes','warning');return;}
   try {
-    const { error } = await db.from('assignments').insert({
-      title, password, time_limit_minutes: minutes, is_active: false,
-    });
-    if (error) throw error;
-    document.getElementById('a-title').value    = '';
-    document.getElementById('a-password').value = '';
-    document.getElementById('a-time').value     = '';
-    toast(`"${title}" created`, 'success');
-    loadDashboard();
-  } catch (err) {
-    toast('Create failed: ' + err.message, 'error');
-  }
+    const {error}=await db.from('assignments').insert({teacher_id:user.id,title,password,join_code:password,prompt_type:'timed_essay',time_limit_minutes:minutes,is_active:false});
+    if(error) throw error;
+    document.getElementById('a-title').value=''; document.getElementById('a-password').value=''; document.getElementById('a-time').value='';
+    toast(`"${title}" created`,'success'); loadDashboard();
+  } catch(err){toast('Create failed: '+err.message,'error');}
 }
 
-async function toggleActive(assignmentId, makeActive) {
+async function toggleActive(assignmentId,makeActive) {
+  const {data:{user}}=await db.auth.getUser(); if(!user) return;
   try {
-    if (makeActive) {
-      await db.from('assignments').update({ is_active: false }).neq('id', assignmentId);
-    }
-    await db.from('assignments').update({ is_active: makeActive }).eq('id', assignmentId);
-    toast(makeActive ? 'Session opened — students can now join' : 'Session closed', 'success');
-    loadDashboard();
-  } catch (err) {
-    toast('Failed: ' + err.message, 'error');
-  }
+    if(makeActive) await db.from('assignments').update({is_active:false}).eq('teacher_id',user.id).neq('id',assignmentId);
+    await db.from('assignments').update({is_active:makeActive}).eq('id',assignmentId);
+    toast(makeActive?'Session opened — students can now join':'Session closed','success'); loadDashboard();
+  } catch(err){toast('Failed: '+err.message,'error');}
 }
 
-async function deleteAssignment(id, title) {
-  openModal(`
-    <div class="modal-header">
-      <h3>Delete assignment?</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      This will permanently delete <strong>${esc(title)}</strong> and all associated submission data.
-      This cannot be undone.
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger" onclick="closeModal(); doDeleteAssignment('${id}')">Delete Permanently</button>
-    </div>
-  `);
+async function deleteAssignment(id,title) {
+  openModal(`<div class="modal-header"><h3>Delete assignment?</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">This will permanently delete <strong>${esc(title)}</strong> and all submission data.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="closeModal();doDeleteAssignment('${id}')">Delete Permanently</button></div>`);
 }
-
 async function doDeleteAssignment(id) {
   try {
-    await db.from('submissions').delete().eq('assignment_id', id);
-    await db.from('assignments').delete().eq('id', id);
-
-    if (STATE.selectedAssignmentId === id) {
-      STATE.selectedAssignmentId = null;
-      STATE.allSubmissions = [];
-      document.getElementById('submissions-table-wrap').innerHTML =
-        '<div class="empty-panel" style="padding:3rem">Select an assignment on the left to view its session report.</div>';
-      document.getElementById('sub-count').textContent = 'Select an assignment to view its session report.';
-      document.getElementById('export-btn').disabled = true;
-    }
-    toast('Assignment deleted', 'success');
-    loadDashboard();
-  } catch (err) {
-    toast('Delete failed: ' + err.message, 'error');
-  }
+    await db.from('submissions').delete().eq('assignment_id',id);
+    await db.from('assignments').delete().eq('id',id);
+    if(STATE.selectedAssignmentId===id){STATE.selectedAssignmentId=null;STATE.allSubmissions=[];document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">Select an assignment on the left.</div>';document.getElementById('sub-count').textContent='Select an assignment to view its session report.';document.getElementById('export-btn').disabled=true;}
+    toast('Assignment deleted','success'); loadDashboard();
+  } catch(err){toast('Delete failed: '+err.message,'error');}
 }
 
-// ═══════════════════════════════════════════════════
-// SUBMISSIONS VIEWER
-// ═══════════════════════════════════════════════════
-function selectAssignment(id) {
-  STATE.selectedAssignmentId = id;
-  STATE.expandedSubId = null;
-  loadSubmissions(id);
-  loadDashboard();
-}
+// ── SUBMISSIONS ──
+function selectAssignment(id){STATE.selectedAssignmentId=id;STATE.expandedSubId=null;loadSubmissions(id);loadDashboard();}
 
 async function loadSubmissions(assignmentId) {
-  document.getElementById('submissions-table-wrap').innerHTML =
-    '<div class="empty-panel" style="padding:2rem">Loading…</div>';
-
+  document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:2rem">Loading…</div>';
   try {
-    const { data, error } = await db
-      .from('submissions')
-      .select('*')
-      .eq('assignment_id', assignmentId)
-      .order('started_at', { ascending: true });
-
-    if (error) throw error;
-
-    STATE.allSubmissions = data || [];
-    renderSubmissionsTable(data || []);
-    document.getElementById('export-btn').disabled = !data || data.length === 0;
-
-  } catch (err) {
-    toast('Failed to load session report: ' + err.message, 'error');
-    document.getElementById('submissions-table-wrap').innerHTML =
-      `<div class="empty-panel" style="padding:2rem;color:var(--danger)">Error: ${err.message}</div>`;
-  }
+    const {data,error}=await db.from('submissions').select('*').eq('assignment_id',assignmentId).order('started_at',{ascending:true});
+    if(error) throw error;
+    STATE.allSubmissions=data||[]; renderSubmissionsTable(data||[]);
+    document.getElementById('export-btn').disabled=!data||!data.length;
+  } catch(err){toast('Failed to load session report: '+err.message,'error');}
 }
 
 function renderSubmissionsTable(submissions) {
-  const countEl = document.getElementById('sub-count');
-  const wrapEl  = document.getElementById('submissions-table-wrap');
-
-  if (!submissions.length) {
-    countEl.textContent = 'No submissions yet.';
-    wrapEl.innerHTML = '<div class="empty-panel" style="padding:3rem">No submissions yet for this session.</div>';
-    return;
-  }
-
-  const submitted = submissions.filter(s => s.is_submitted).length;
-  countEl.textContent = `${submissions.length} student${submissions.length !== 1 ? 's' : ''} · ${submitted} submitted`;
-
-  const rows = submissions.map(s => {
-    const log = s.process_log || [];
-    const pastes    = log.filter(e => e.type === 'paste');
-    const blurs     = log.filter(e => e.type === 'window_blur' || e.type === 'tab_hidden');
-    const wordDrops = log.filter(e => e.type === 'word_drop');
-    const largePaste = pastes.some(e => e.char_count > 200);
-
-    // Compute total time away
-    const focuses = log.filter(e => e.type === 'window_focus');
-    const totalAway = focuses.reduce((sum, e) => sum + (e.char_count || 0), 0);
-
-    // Notable markers — neutral language per brand spec
-    const notable = [
-      pastes.length > 0  ? `<span title="${pastes.length} paste event(s)" style="color:var(--warning)">paste ×${pastes.length}</span>` : '',
-      largePaste         ? `<span title="Paste over 200 characters" style="color:var(--warning)">large paste</span>` : '',
-      blurs.length > 0   ? `<span title="${blurs.length} time(s) window left focus" style="color:var(--pt-muted)">focus ×${blurs.length}</span>` : '',
-      wordDrops.length > 0 ? `<span title="${wordDrops.length} notable word count drop(s)" style="color:var(--pt-muted)">word drop</span>` : '',
-    ].filter(Boolean).join(' &nbsp;');
-
-    return `
-      <tr onclick="toggleSubmissionDetail('${s.id}')">
-        <td><strong>${esc(s.student_name)}</strong></td>
-        <td>${esc(s.class_period || '—')}</td>
-        <td style="font-family:'DM Mono',monospace">${s.word_count || 0}</td>
-        <td>${s.is_submitted
-              ? `<span class="submitted-yes">✓ Submitted</span>`
-              : `<span class="submitted-no">In progress</span>`
-            }</td>
-        <td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at ? formatTime(s.submitted_at) : '—'}</td>
-        <td style="font-size:var(--text-xs)">${notable || '<span style="color:var(--pt-muted)">—</span>'}</td>
-        <td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">
-          ${totalAway > 0 ? `${totalAway}s away` : '—'}
-        </td>
-      </tr>
-      ${STATE.expandedSubId === s.id ? renderDetailRow(s) : ''}
-    `;
+  const countEl=document.getElementById('sub-count'),wrapEl=document.getElementById('submissions-table-wrap');
+  if(!submissions.length){countEl.textContent='No submissions yet.';wrapEl.innerHTML='<div class="empty-panel" style="padding:3rem">No submissions yet for this session.</div>';return;}
+  const submitted=submissions.filter(s=>s.is_submitted).length;
+  countEl.textContent=`${submissions.length} student${submissions.length!==1?'s':''} · ${submitted} submitted`;
+  const rows=submissions.map(s=>{
+    const log=s.process_log||[];
+    const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
+    const largePaste=pastes.some(e=>e.char_count>200),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
+    const notable=[pastes.length>0?`<span style="color:var(--warning)">paste ×${pastes.length}</span>`:'',largePaste?`<span style="color:var(--warning)">large paste</span>`:'',blurs.length>0?`<span style="color:var(--pt-muted)">focus ×${blurs.length}</span>`:'',wordDrops.length>0?`<span style="color:var(--pt-muted)">word drop</span>`:''].filter(Boolean).join(' &nbsp;');
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_name||s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td></tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
-
-  wrapEl.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Student</th>
-          <th>Period</th>
-          <th>Words</th>
-          <th>Status</th>
-          <th>Submitted</th>
-          <th>Notable Events</th>
-          <th>Time Away</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events</th><th>Time Away</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function toggleSubmissionDetail(subId) {
-  STATE.expandedSubId = (STATE.expandedSubId === subId) ? null : subId;
-  renderSubmissionsTable(STATE.allSubmissions);
-}
+function toggleSubmissionDetail(subId){STATE.expandedSubId=(STATE.expandedSubId===subId)?null:subId;renderSubmissionsTable(STATE.allSubmissions);}
 
 function renderDetailRow(sub) {
-  const log = sub.process_log || [];
-  const logHtml = log.length
-    ? log.map(e => `
-        <div class="log-entry ${e.type}">
-          <span class="log-type">${labelForEvent(e.type)}</span>
-          <span class="log-time">
-            <span class="log-wall">${formatTime(e.timestamp)}</span>
-            <span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span>
-          </span>
-          <span class="log-detail">${esc(getLogDetail(e))}</span>
-        </div>
-      `).join('')
-    : '<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
-
-  // Notable flags per brand vocabulary
-  const pastes    = log.filter(e => e.type === 'paste');
-  const largePaste = log.some(e => e.type === 'paste' && e.char_count > 200);
-  const blurs     = log.filter(e => e.type === 'window_blur' || e.type === 'tab_hidden');
-  const wordDrops = log.filter(e => e.type === 'word_drop');
-
-  const flagText = [
-    pastes.length > 0   ? `${pastes.length} paste event${pastes.length > 1 ? 's' : ''}` : '',
-    largePaste          ? `paste over 200 chars` : '',
-    blurs.length > 0    ? `window left focus ${blurs.length}×` : '',
-    wordDrops.length > 0 ? `notable word count drop` : '',
-  ].filter(Boolean).join(' · ');
-
-  return `
-    <tr class="detail-row">
-      <td class="detail-cell" colspan="7">
-        <div class="detail-header">
-          <div>
-            <strong>${esc(sub.student_name)}</strong>
-            <span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">
-              ${sub.word_count || 0} words · Started ${formatTime(sub.started_at)}
-            </span>
-          </div>
-          <div class="detail-flags" style="font-size:var(--text-xs);color:var(--pt-muted)">
-            ${flagText || 'No notable events'}
-          </div>
-        </div>
-        <div class="detail-essay">${esc(sub.essay_text || '(no essay text)')}</div>
-        <div class="process-log-title">Process Log</div>
-        <div class="process-log-list">${logHtml}</div>
-        <div style="margin-top:var(--space-sm)">
-          <div class="disclaimer">
-            This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.
-          </div>
-        </div>
-      </td>
-    </tr>
-  `;
+  const log=sub.process_log||[];
+  const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
+  const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
+  const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`window left focus ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
+  return `<tr class="detail-row"><td class="detail-cell" colspan="7"><div class="detail-header"><div><strong>${esc(sub.student_name||sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm)"><div class="disclaimer">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div></div></td></tr>`;
 }
 
-// Brand-compliant event labels
 function labelForEvent(type) {
-  const labels = {
-    paste:           'Paste event',
-    window_blur:     'Window left focus',
-    tab_hidden:      'Window left focus',
-    window_focus:    'Window returned',
-    burst:           'Typing burst',
-    idle:            'Idle gap',
-    delete_burst:    'Large deletion',
-    word_drop:       'Word count drop',
-    paste_then_delete: 'Content removed after paste',
-    shortcut:        'Keyboard shortcut',
-    right_click:     'Right-click',
-  };
-  return labels[type] || type.replace(/_/g, ' ');
+  const l={paste:'Paste event',window_blur:'Window left focus',tab_hidden:'Window left focus',window_focus:'Window returned',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste'};
+  return l[type]||type.replace(/_/g,' ');
 }
-
 function getLogDetail(entry) {
-  switch (entry.type) {
-    case 'paste':
-      return `${entry.char_count} chars${entry.content_preview ? ' — "' + entry.content_preview + '…"' : ''}`;
-    case 'window_blur':
-    case 'tab_hidden':
-      return 'Window left focus';
-    case 'window_focus':
-      return entry.content_preview || 'Window returned';
-    case 'burst':
-      return `${entry.char_count} chars in one burst`;
-    case 'idle':
-      return entry.content_preview || 'Idle period';
-    case 'delete_burst':
-      return `${entry.char_count} chars deleted`;
-    case 'word_drop':
-      return entry.content_preview || 'Word count dropped significantly';
-    case 'paste_then_delete':
-      return entry.content_preview || 'Content removed shortly after paste';
-    default:
-      return entry.content_preview || '';
+  switch(entry.type){
+    case 'paste': return `${entry.char_count} chars${entry.content_preview?' — "'+entry.content_preview+'…"':''}`;
+    case 'window_blur': case 'tab_hidden': return 'Window left focus';
+    case 'window_focus': return entry.content_preview||'Window returned';
+    case 'first_keystroke': return entry.content_preview||'Writing began';
+    case 'burst': return `${entry.char_count} chars in one burst`;
+    case 'idle': return entry.content_preview||'Idle period';
+    case 'delete_burst': return `${entry.char_count} chars deleted`;
+    case 'word_drop': return entry.content_preview||'Word count dropped significantly';
+    case 'paste_then_delete': return entry.content_preview||'Content removed shortly after paste';
+    default: return entry.content_preview||'';
   }
 }
 
-// ═══════════════════════════════════════════════════
-// EXPORT TO TSV
-// ═══════════════════════════════════════════════════
+// ── EXPORT TSV ──
 function exportTSV() {
-  const subs = STATE.allSubmissions;
-  if (!subs.length) { toast('No submissions to export', 'warning'); return; }
-
-  const headers = [
-    'Student Name', 'Period', 'Word Count', 'Submitted', 'Submitted At',
-    'Paste Events', 'Large Pastes (200+ chars)', 'Times Window Left Focus', 'Total Time Away (seconds)', 'Essay Text'
-  ];
-
-  const rows = subs.map(s => {
-    const log = s.process_log || [];
-    const pastes     = log.filter(e => e.type === 'paste');
-    const largePaste = pastes.filter(e => e.char_count > 200);
-    const blurs      = log.filter(e => e.type === 'window_blur' || e.type === 'tab_hidden');
-    const focuses    = log.filter(e => e.type === 'window_focus');
-    const totalAway  = focuses.reduce((sum, e) => sum + (e.char_count || 0), 0);
-
-    return [
-      s.student_name,
-      s.class_period || '',
-      s.word_count || 0,
-      s.is_submitted ? 'Yes' : 'No',
-      s.submitted_at ? formatTime(s.submitted_at) : '',
-      pastes.length,
-      largePaste.length,
-      blurs.length,
-      totalAway,
-      (s.essay_text || '').replace(/\t/g, ' ').replace(/\n/g, ' ↵ '),
-    ].join('\t');
+  const subs=STATE.allSubmissions;
+  if(!subs.length){toast('No submissions to export','warning');return;}
+  const headers=['Student Name','Period','Word Count','Submitted','Submitted At','Paste Events','Large Pastes (200+)','Times Window Left Focus','Total Time Away (seconds)','Time to First Keystroke (seconds)','Essay Text'];
+  const rows=subs.map(s=>{
+    const log=s.process_log||[];
+    const pastes=log.filter(e=>e.type==='paste'),largePaste=pastes.filter(e=>e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0),firstKey=log.find(e=>e.type==='first_keystroke');
+    return [s.student_name||s.student_display_name,s.class_period||'',s.word_count||0,s.is_submitted?'Yes':'No',s.submitted_at?formatTime(s.submitted_at):'',pastes.length,largePaste.length,blurs.length,totalAway,firstKey?firstKey.elapsed_seconds:'',(s.essay_text||'').replace(/\t/g,' ').replace(/\n/g,' ↵ ')].join('\t');
   });
-
-  const tsv = [headers.join('\t'), ...rows].join('\n');
-
-  try {
-    navigator.clipboard.writeText(tsv);
-    toast('Tab-separated data copied — paste into Google Sheets', 'success', 4000);
-  } catch (e) {
-    const blob = new Blob([tsv], { type: 'text/plain' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `session-report-${STATE.selectedAssignmentId}.tsv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+  const tsv=[headers.join('\t'),...rows].join('\n');
+  try{navigator.clipboard.writeText(tsv);toast('Tab-separated data copied — paste into Google Sheets','success',4000);}
+  catch(e){const blob=new Blob([tsv],{type:'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`session-report-${STATE.selectedAssignmentId}.tsv`;a.click();URL.revokeObjectURL(url);}
 }
+
+// ── START ──
+boot();
 
 </script>
 </body>
