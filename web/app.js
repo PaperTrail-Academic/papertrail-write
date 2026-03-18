@@ -1,9 +1,8 @@
 const { createClient } = supabase;
-// Anon key is safe to be public — security enforced entirely via Supabase RLS
-const db = createClient(
-  'https://iiviamoigtubkebreolx.supabase.co',
-  'sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp'
-);
+// Publishable key — safe to be public, security enforced via RLS
+const SUPABASE_URL = 'https://iiviamoigtubkebreolx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp';
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 const STATE = {
   teacher: null, teacherProfile: null,
   submissionId: null, sessionId: null, assignmentId: null, assignmentTitle: null,
@@ -15,7 +14,8 @@ const STATE = {
   pendingBurstChars: 0, burstCheckInterval: null,
   _visibilityHandler: null, _blurHandler: null, _focusHandler: null,
   selectedAssignmentId: null, allSubmissions: [], expandedSubId: null,
-  selectedSessionId: null,  // which session is shown in the right panel
+  selectedSessionId: null,
+  _archiveOpen: false,
   realtimeChannel: null,
   pauseCountdownInterval: null,
   isPreview: false,
@@ -80,17 +80,22 @@ function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
 // Shows appropriate toast/modal on block.
 async function checkPlanLimit(resource, teacherId) {
   try {
+    // Use the teacher's session JWT so the Edge Function can authenticate the request
+    const { data: { session } } = await db.auth.getSession();
+    const jwt = session?.access_token || SUPABASE_KEY;
     const resp = await fetch(
-      'https://iiviamoigtubkebreolx.supabase.co/functions/v1/check-plan-limits',
+      `${SUPABASE_URL}/functions/v1/check-plan-limits`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwt}`,
+        },
         body: JSON.stringify({ resource, teacher_id: teacherId }),
       }
     );
     const result = await resp.json();
     if (result.ok) return false; // allowed
-    // Blocked — show upgrade prompt
     const msg = result.message || 'Plan limit reached.';
     openModal(`<div class="modal-header"><h3>Plan limit reached</h3><button class="modal-close" onclick="closeModal()">×</button></div>
       <div class="modal-body">${esc(msg)}</div>
@@ -100,8 +105,8 @@ async function checkPlanLimit(resource, teacherId) {
       </div>`);
     return true; // blocked
   } catch(err) {
-    // Edge Function not deployed yet — fail open so development isn't blocked
-    console.warn('check-plan-limits not reachable, failing open:', err.message);
+    // Fail open so development isn't blocked if Edge Function is unreachable
+    console.warn('check-plan-limits unreachable, failing open:', err.message);
     return false;
   }
 }
@@ -931,7 +936,11 @@ function renderAssignmentList(assignments) {
   const el=document.getElementById('assignment-list');
   if(!assignments.length){el.innerHTML='<div class="empty-panel">No assignments yet. Create one above.</div>';return;}
   const ptLabels={essay:'Essay', document_based:'Document-Based', source_analysis:'Source Analysis'};
-  el.innerHTML=assignments.map(a=>{
+
+  const active = assignments.filter(a => !a.archived);
+  const archived = assignments.filter(a => a.archived);
+
+  const renderCard = (a) => {
     const isActive=a._status==='active';
     const isPaused=a._status==='paused';
     const sessionId=a._session?.id||null;
@@ -939,11 +948,13 @@ function renderAssignmentList(assignments) {
       ?`<span class="pill pill-active">Active</span>`
       :isPaused
         ?`<span class="pill" style="background:#fff8e1;color:var(--warning);border-color:#f0c040">Paused</span>`
-        :`<span class="pill pill-inactive">Draft</span>`;
+        :a.archived
+          ?`<span class="pill" style="background:var(--pt-light);color:var(--pt-muted);border-color:var(--pt-border)">Archived</span>`
+          :`<span class="pill pill-inactive">Draft</span>`;
     const ptLabel=ptLabels[a.prompt_type]||'Essay';
     const className = a.class_id ? ((STATE._classes||[]).find(c=>c.id===a.class_id)?.name||'') : '';
     const classPart = className ? ` · ${esc(className)}` : '';
-    const sessionActions=isActive
+    const sessionActions = a.archived ? '' : isActive
       ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="pauseSession('${a.id}','${sessionId}')">Pause</button>
          <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End</button>`
       :isPaused
@@ -951,16 +962,65 @@ function renderAssignmentList(assignments) {
            <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End</button>`
         :`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="openSession('${a.id}')">Open Session</button>
            <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>`;
-    const editPreviewActions=`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();editAssignment('${a.id}')">Edit</button>
-       <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>`;
-    return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''}" onclick="selectAssignment('${a.id}')">
+    const editPreviewActions = a.archived
+      ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();unarchiveAssignment('${a.id}')">Unarchive</button>`
+      :`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();editAssignment('${a.id}')">Edit</button>
+         <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
+         <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem;color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>`;
+    return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
-      <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'} · Code: <code style="font-family:'DM Mono',monospace">${esc(a._joinCode||'—')}</code></div>
+      <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
       <div style="margin-top:0.35rem">${statusPill}</div>
       <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
     </div>`;
-  }).join('');
+  };
+
+  let html = active.map(renderCard).join('');
+
+  if (archived.length) {
+    const archiveOpen = STATE._archiveOpen || false;
+    html += `<div style="margin-top:0.5rem">
+      <button onclick="toggleArchivePanel()" style="width:100%;text-align:left;padding:0.5rem 0.75rem;background:none;border:none;border-top:1px solid var(--pt-border);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:var(--text-xs);font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--pt-muted);display:flex;align-items:center;justify-content:space-between">
+        <span>Archived (${archived.length})</span>
+        <span>${archiveOpen?'▲':'▼'}</span>
+      </button>
+      ${archiveOpen ? `<div>${archived.map(renderCard).join('')}</div>` : ''}
+    </div>`;
+  }
+
+  if (!active.length && !archived.length) {
+    html = '<div class="empty-panel">No assignments yet. Create one above.</div>';
+  } else if (!active.length) {
+    html = '<div class="empty-panel" style="padding:0.75rem">All assignments archived.</div>' + html;
+  }
+
+  el.innerHTML = html;
 }
+
+function toggleArchivePanel() {
+  STATE._archiveOpen = !STATE._archiveOpen;
+  loadDashboard();
+}
+
+async function archiveAssignment(id, title) {
+  try {
+    const {error} = await db.from('assignments').update({archived: true}).eq('id', id);
+    if (error) throw error;
+    toast(`"${title}" archived`, 'success');
+    loadDashboard();
+  } catch(err) { toast('Archive failed: '+err.message, 'error'); }
+}
+
+async function unarchiveAssignment(id) {
+  try {
+    const {error} = await db.from('assignments').update({archived: false}).eq('id', id);
+    if (error) throw error;
+    toast('Assignment restored', 'success');
+    loadDashboard();
+  } catch(err) { toast('Restore failed: '+err.message, 'error'); }
+}
+
+
 
 // ── ASSIGNMENT FORM HELPERS ──
 function selectPromptType(btn) {
