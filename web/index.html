@@ -621,13 +621,14 @@
 <div class="modal-overlay" id="modal-overlay"><div class="modal-box" id="modal-box"></div></div>
 <div id="toast-container"></div>
 
-<script src="env.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-
 const { createClient } = supabase;
-const db = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
-
+// Anon key is safe to be public — security enforced entirely via Supabase RLS
+const db = createClient(
+  'https://opxejwarxyuqyafysqvk.supabase.co',
+  'sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp'
+);
 const STATE = {
   teacher: null, teacherProfile: null,
   submissionId: null, assignmentId: null, assignmentTitle: null,
