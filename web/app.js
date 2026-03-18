@@ -7,7 +7,7 @@ const db = createClient(
 const STATE = {
   teacher: null, teacherProfile: null,
   submissionId: null, sessionId: null, assignmentId: null, assignmentTitle: null,
-  assignmentPromptText: null, assignmentPromptType: 'timed_essay', assignmentAllowSpellcheck: false,
+  assignmentPromptText: null, assignmentPromptType: 'essay', assignmentAllowSpellcheck: false,
   timeLimitSeconds: 0, studentName: null, period: null, startedAt: null,
   timerInterval: null, autosaveInterval: null, processLog: [], isSubmitted: false,
   firstKeystrokeLogged: false, _blurStartTime: null,
@@ -19,7 +19,7 @@ const STATE = {
   pauseCountdownInterval: null,
   isPreview: false,
   editingAssignmentId: null,
-  selectedPromptType: 'timed_essay',
+  selectedPromptType: 'essay',
   // Sources
   formSources: [],         // [{id, label, type, text_content, storage_path, storage_url, _file, _uploading}] in teacher form
   studentSources: [],      // Loaded at join time for student rendering
@@ -74,6 +74,36 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); }
 
 // ── HELPERS ──
 function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
+
+// Returns true if the action is blocked (limit reached), false if allowed.
+// Shows appropriate toast/modal on block.
+async function checkPlanLimit(resource, teacherId) {
+  try {
+    const resp = await fetch(
+      'https://iiviamoigtubkebreolx.supabase.co/functions/v1/check-plan-limits',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp` },
+        body: JSON.stringify({ resource, teacher_id: teacherId }),
+      }
+    );
+    const result = await resp.json();
+    if (result.ok) return false; // allowed
+    // Blocked — show upgrade prompt
+    const msg = result.message || 'Plan limit reached.';
+    openModal(`<div class="modal-header"><h3>Plan limit reached</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+      <div class="modal-body">${esc(msg)}</div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="closeModal()">Upgrade — coming soon</button>
+      </div>`);
+    return true; // blocked
+  } catch(err) {
+    // Edge Function not deployed yet — fail open so development isn't blocked
+    console.warn('check-plan-limits not reachable, failing open:', err.message);
+    return false;
+  }
+}
 function elapsedSeconds() { if(!STATE.startedAt) return 0; return Math.floor((Date.now()-new Date(STATE.startedAt).getTime())/1000); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatTime(iso) { if(!iso) return '—'; try { return new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return iso; } }
@@ -175,6 +205,41 @@ async function setNewPassword() {
 }
 
 // ── STUDENT LOGIN ──
+
+// Called on join code blur — fetches roster if available and swaps name field to dropdown
+async function prefetchRosterForCode() {
+  const joinCode = document.getElementById('s-password')?.value.trim().toUpperCase();
+  const nameGroup = document.getElementById('s-name-group');
+  if (!joinCode || joinCode.length < 4) return;
+
+  try {
+    // Find active session
+    const {data:sessions} = await db.from('sessions').select('assignment_id').eq('join_code',joinCode).eq('status','active');
+    if (!sessions?.length) return;
+
+    // Find assignment's class_id
+    const {data:asgn} = await db.from('assignments').select('class_id').eq('id',sessions[0].assignment_id).single();
+    if (!asgn?.class_id) return;
+
+    // Fetch the roster
+    const {data:cls} = await db.from('classes').select('student_roster').eq('id',asgn.class_id).single();
+    const roster = cls?.student_roster||[];
+    if (!roster.length) return;
+
+    // Swap name input → dropdown
+    const names = roster.map(s => typeof s==='string' ? s : s.name).sort();
+    nameGroup.innerHTML = `<label>Your Name</label>
+      <select class="form-input form-select" id="s-name">
+        <option value="">— Select your name —</option>
+        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+      </select>
+      <div class="form-hint">Don't see your name? Ask your teacher.</div>`;
+  } catch(e) {
+    // Silently fail — student can still type their name
+  }
+}
+
+
 async function studentLogin() {
   const name=document.getElementById('s-name').value.trim();
   const period=document.getElementById('s-period').value.trim();
@@ -190,9 +255,33 @@ async function studentLogin() {
     if(sessErr) throw sessErr;
     if(!sessions||!sessions.length){statusEl.className='status-msg error';statusEl.textContent='No active session found with that join code. Ask your teacher to check.';return;}
     const session=sessions[0];
-    // Fetch the assignment for this session
-    const {data:assignment,error:aErr}=await db.from('assignments').select('*').eq('id',session.assignment_id).single();
+
+    // Fetch assignment + class roster in parallel
+    const [{data:assignment,error:aErr},{data:classRow}] = await Promise.all([
+      db.from('assignments').select('*').eq('id',session.assignment_id).single(),
+      // Only fetch class if assignment has one — otherwise resolves to null gracefully
+      db.from('assignments').select('class_id').eq('id',session.assignment_id).single()
+        .then(async ({data:a}) => {
+          if (!a?.class_id) return {data: null};
+          return db.from('classes').select('student_roster').eq('id',a.class_id).single();
+        }),
+    ]);
     if(aErr) throw aErr;
+
+    // Compute effective time limit — base + any accommodation for this student
+    const baseMins = assignment.time_limit_minutes || 0;
+    let effectiveMins = baseMins;
+    if (baseMins && classRow?.student_roster?.length) {
+      const entry = classRow.student_roster.find(s => {
+        const entryName = typeof s === 'string' ? s : s.name;
+        return entryName.toLowerCase() === name.toLowerCase();
+      });
+      if (entry && typeof entry === 'object' && entry.extended_minutes) {
+        effectiveMins = baseMins + entry.extended_minutes;
+      }
+    }
+    const effectiveSeconds = effectiveMins * 60;
+
     // Check for existing submission in this session
     const {data:existing,error:sErr}=await db.from('submissions').select('*').eq('session_id',session.id).eq('student_display_name',name).maybeSingle();
     if(sErr) throw sErr;
@@ -200,9 +289,9 @@ async function studentLogin() {
     if(existing) {
       if(existing.is_submitted){loadSubmittedScreen(existing);showScreen('submitted');return;}
       STATE.submissionId=existing.id; STATE.assignmentId=assignment.id;
-      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=(assignment.time_limit_minutes||0)*60;
+      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=effectiveSeconds;
       STATE.assignmentPromptText=assignment.prompt_text||'';
-      STATE.assignmentPromptType=assignment.prompt_type||'timed_essay';
+      STATE.assignmentPromptType=assignment.prompt_type||'essay';
       STATE.assignmentAllowSpellcheck=assignment.allow_spellcheck||false;
       STATE.studentName=name; STATE.period=period; STATE.startedAt=existing.started_at;
       STATE.processLog=existing.process_log||[]; STATE.isSubmitted=false;
@@ -218,14 +307,14 @@ async function studentLogin() {
       }).select().single();
       if(nErr) throw nErr;
       STATE.submissionId=newSub.id; STATE.assignmentId=assignment.id;
-      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=(assignment.time_limit_minutes||0)*60;
+      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=effectiveSeconds;
       STATE.assignmentPromptText=assignment.prompt_text||'';
-      STATE.assignmentPromptType=assignment.prompt_type||'timed_essay';
+      STATE.assignmentPromptType=assignment.prompt_type||'essay';
       STATE.assignmentAllowSpellcheck=assignment.allow_spellcheck||false;
       STATE.studentName=name; STATE.period=period; STATE.startedAt=now;
       STATE.processLog=[]; STATE.isSubmitted=false;
     }
-    // Load sources for this assignment (needed regardless of resume/new)
+    // Load sources for this assignment
     await loadSources(assignment.id);
     showScreen('transparency');
   } catch(err) {
@@ -248,7 +337,7 @@ function enterWritingMode(savedText) {
   const promptText = STATE.assignmentPromptText;
   const promptPanel = document.getElementById('prompt-panel');
   if (promptText && promptText.trim()) {
-    const typeLabels = {timed_essay:'Timed Essay Prompt',document_based:'Document-Based Prompt',open_response:'Open Response Prompt',source_analysis:'Source Analysis Prompt'};
+    const typeLabels = {essay:'Assignment Prompt', document_based:'Document-Based Prompt', source_analysis:'Source Analysis Prompt'};
     document.getElementById('prompt-type-label').textContent = typeLabels[STATE.assignmentPromptType] || 'Assignment Prompt';
     document.getElementById('prompt-body').textContent = promptText;
     promptPanel.style.display = 'block';
@@ -470,13 +559,21 @@ async function loadDashboard() {
   try {
     const {data:{user}}=await db.auth.getUser();
     if(!user){showScreen('teacher-login');return;}
-    const {data:assignments,error:aErr}=await db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false});
+    const [
+      {data:assignments,error:aErr},
+      {data:sessions,error:sErr},
+      {data:classes,error:cErr},
+    ] = await Promise.all([
+      db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}),
+      db.from('sessions').select('*').eq('teacher_id',user.id).neq('status','ended'),
+      db.from('classes').select('*').eq('teacher_id',user.id).order('name',{ascending:true}),
+    ]);
     if(aErr) throw aErr;
-    const {data:sessions,error:sErr}=await db.from('sessions').select('*').eq('teacher_id',user.id).neq('status','ended');
     if(sErr) throw sErr;
+    STATE._classes = classes||[];
     const sessionsByAssignment={};
     (sessions||[]).forEach(s=>{ sessionsByAssignment[s.assignment_id]=s; });
-    STATE._lastSessions=sessionsByAssignment;  // cache for Realtime wiring
+    STATE._lastSessions=sessionsByAssignment;
     const merged=(assignments||[]).map(a=>({
       ...a,
       _session: sessionsByAssignment[a.id]||null,
@@ -484,9 +581,10 @@ async function loadDashboard() {
       _joinCode: sessionsByAssignment[a.id]?.join_code||a.join_code||'—',
     }));
     renderAssignmentList(merged);
+    renderClassList(classes||[], 'class-list', false);
+    refreshClassSelector(classes||[]);
     if(STATE.selectedAssignmentId) {
       loadSubmissions(STATE.selectedAssignmentId);
-      // Wire Realtime if not already subscribed
       const activeSession=sessionsByAssignment[STATE.selectedAssignmentId];
       if(activeSession&&(activeSession.status==='active'||activeSession.status==='paused')&&!STATE.realtimeChannel){
         subscribeToLiveSession(activeSession.id);
@@ -498,10 +596,321 @@ async function loadDashboard() {
 }
 function refreshDashboard(){loadDashboard();toast('Refreshed','default',1500);}
 
+function refreshClassSelector(classes) {
+  const sel = document.getElementById('a-class');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— No class —</option>' +
+    (classes||[]).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if (current) sel.value = current; // restore selection if editing
+}
+
+// ── CLASS & ROSTER MANAGEMENT ──
+
+// Render class list — used in both dashboard widget and T5 screen
+// mode: false = dashboard widget (compact), true = roster screen (selectable)
+function renderClassList(classes, containerId, rosterMode) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!classes.length) {
+    el.innerHTML = '<div class="empty-panel">No classes yet.</div>';
+    return;
+  }
+  el.innerHTML = classes.map(c => {
+    const count = (c.student_roster||[]).length;
+    const isSelected = rosterMode && STATE._selectedClassId === c.id;
+    return `<div class="class-item ${isSelected?'selected':''}" onclick="${rosterMode?`selectClass('${c.id}')`:`openRosterScreen('${c.id}')`}">
+      <div>
+        <div class="class-item-name">${esc(c.name)}</div>
+        <div class="class-item-meta">${count} student${count!==1?'s':''}</div>
+      </div>
+      <div class="class-item-actions">
+        <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.2rem 0.5rem" onclick="event.stopPropagation();showEditClassModal('${c.id}','${esc(c.name)}')">Edit</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function openRosterScreen(classId) {
+  showScreen('roster');
+  await loadRosterScreen(classId);
+}
+
+async function loadRosterScreen(classId) {
+  const {data:{user}} = await db.auth.getUser();
+  if (!user) return;
+  const {data:classes} = await db.from('classes').select('*').eq('teacher_id',user.id).order('name',{ascending:true});
+  STATE._classes = classes||[];
+  STATE._selectedClassId = classId;
+  renderClassList(classes||[], 'roster-class-list', true);
+  if (classId) selectClass(classId);
+}
+
+function selectClass(classId) {
+  STATE._selectedClassId = classId;
+  // Re-render class list to update selected state
+  renderClassList(STATE._classes||[], 'roster-class-list', true);
+  const cls = (STATE._classes||[]).find(c => c.id === classId);
+  if (!cls) return;
+  document.getElementById('roster-class-name').textContent = cls.name;
+  document.getElementById('roster-actions').style.display = 'flex';
+  renderRosterBody(cls);
+}
+
+function renderRosterBody(cls) {
+  const el = document.getElementById('roster-body');
+  if (!el) return;
+  const roster = cls.student_roster || [];
+
+  const addRow = `
+    <div class="roster-toolbar">
+      <div class="roster-add-form">
+        <input class="roster-add-input" id="roster-add-name" type="text"
+          placeholder="First L.  (e.g. Jordan M.)"
+          onkeydown="if(event.key==='Enter') addRosterStudent('${cls.id}')">
+        <button class="btn btn-primary" style="padding:0.45rem 0.9rem;font-size:var(--text-sm)" onclick="addRosterStudent('${cls.id}')">Add</button>
+      </div>
+    </div>`;
+
+  if (!roster.length) {
+    el.innerHTML = addRow + '<div class="empty-panel" style="padding:2rem">No students yet. Add names above or import a CSV.</div>';
+    return;
+  }
+
+  const rows = roster.map((s, i) => {
+    const name = typeof s === 'string' ? s : s.name;
+    const ext = typeof s === 'object' ? (s.extended_minutes||'') : '';
+    return `<tr>
+      <td>${esc(name)}</td>
+      <td>
+        <input class="accommodation-input" type="number" min="0" max="120"
+          value="${ext}" placeholder="—"
+          title="Extra minutes for this student"
+          onchange="updateAccommodation('${cls.id}', ${i}, this.value)">
+        <span style="font-size:var(--text-xs);color:var(--pt-muted);margin-left:0.35rem">min</span>
+      </td>
+      <td><button class="roster-remove-btn" onclick="removeRosterStudent('${cls.id}', ${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = addRow + `
+    <table class="roster-table">
+      <thead><tr>
+        <th>Name</th>
+        <th title="Extra time accommodation in minutes">Extra Time</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="csv-hint">Extra time: enter additional minutes for students with accommodations. A student with 45 min base + 15 min extra gets 60 min total.</div>`;
+}
+
+// Validate "First L." format — flexible: allows multi-word first names, single initial
+function validateRosterName(name) {
+  return name.trim().length >= 2;
+}
+
+async function addRosterStudent(classId) {
+  const input = document.getElementById('roster-add-name');
+  const name = input.value.trim();
+  if (!name) return;
+  if (!validateRosterName(name)) { toast('Please enter a name (at least 2 characters)','warning'); return; }
+  const cls = (STATE._classes||[]).find(c => c.id === classId);
+  if (!cls) return;
+  const roster = [...(cls.student_roster||[])];
+  // Check duplicate
+  const exists = roster.some(s => (typeof s==='string'?s:s.name).toLowerCase() === name.toLowerCase());
+  if (exists) { toast('That name is already in the roster','warning'); return; }
+  roster.push({name, extended_minutes: null});
+  await saveRoster(classId, roster);
+  input.value = '';
+  input.focus();
+}
+
+async function removeRosterStudent(classId, idx) {
+  const cls = (STATE._classes||[]).find(c => c.id === classId);
+  if (!cls) return;
+  const roster = [...(cls.student_roster||[])];
+  roster.splice(idx, 1);
+  await saveRoster(classId, roster);
+}
+
+async function updateAccommodation(classId, idx, value) {
+  const cls = (STATE._classes||[]).find(c => c.id === classId);
+  if (!cls) return;
+  const roster = [...(cls.student_roster||[])];
+  const entry = roster[idx];
+  const mins = parseInt(value)||null;
+  if (typeof entry === 'string') {
+    roster[idx] = {name: entry, extended_minutes: mins};
+  } else {
+    roster[idx] = {...entry, extended_minutes: mins};
+  }
+  await saveRoster(classId, roster);
+}
+
+async function saveRoster(classId, roster) {
+  try {
+    const {error} = await db.from('classes').update({student_roster: roster}).eq('id', classId);
+    if (error) throw error;
+    // Update local cache
+    const cls = (STATE._classes||[]).find(c => c.id === classId);
+    if (cls) { cls.student_roster = roster; renderRosterBody(cls); }
+    // Refresh dashboard class widget if visible
+    renderClassList(STATE._classes||[], 'class-list', false);
+  } catch(err) { toast('Failed to save roster: '+err.message,'error'); }
+}
+
+async function deleteSelectedClass() {
+  const classId = STATE._selectedClassId;
+  if (!classId) return;
+  const cls = (STATE._classes||[]).find(c => c.id === classId);
+  openModal(`<div class="modal-header"><h3>Delete class?</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">Delete <strong>${esc(cls?.name||'this class')}</strong>? The class and its roster will be permanently removed. Assignments linked to this class are not affected.</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="closeModal();doDeleteClass('${classId}')">Delete</button>
+    </div>`);
+}
+
+async function doDeleteClass(classId) {
+  try {
+    const {error} = await db.from('classes').delete().eq('id', classId);
+    if (error) throw error;
+    STATE._selectedClassId = null;
+    STATE._classes = (STATE._classes||[]).filter(c => c.id !== classId);
+    renderClassList(STATE._classes, 'roster-class-list', true);
+    renderClassList(STATE._classes, 'class-list', false);
+    document.getElementById('roster-class-name').textContent = 'Select a class';
+    document.getElementById('roster-actions').style.display = 'none';
+    document.getElementById('roster-body').innerHTML = '<div class="empty-panel" style="padding:3rem">Select a class on the left to manage its roster.</div>';
+    toast('Class deleted','success');
+  } catch(err) { toast('Delete failed: '+err.message,'error'); }
+}
+
+function showAddClassModal() {
+  openModal(`<div class="modal-header"><h3>New class</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Class Name</label>
+        <input class="form-input" id="new-class-name" type="text" placeholder="e.g. English 10 — Period 3"
+          onkeydown="if(event.key==='Enter') doAddClass()">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doAddClass()">Create Class</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('new-class-name')?.focus(), 50);
+}
+
+function showEditClassModal(classId, currentName) {
+  openModal(`<div class="modal-header"><h3>Rename class</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Class Name</label>
+        <input class="form-input" id="edit-class-name" type="text" value="${esc(currentName)}"
+          onkeydown="if(event.key==='Enter') doEditClass('${classId}')">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doEditClass('${classId}')">Save</button>
+    </div>`);
+  setTimeout(()=>{ const el=document.getElementById('edit-class-name'); if(el){el.focus();el.select();} }, 50);
+}
+
+async function doAddClass() {
+  const {data:{user}} = await db.auth.getUser(); if (!user) return;
+  const name = document.getElementById('new-class-name')?.value.trim();
+  if (!name) { toast('Please enter a class name','warning'); return; }
+  const limited = await checkPlanLimit('class', user.id);
+  if (limited) return;
+  try {
+    const {data:cls,error} = await db.from('classes').insert({teacher_id:user.id, name, student_roster:[]}).select().single();
+    if (error) throw error;
+    closeModal();
+    STATE._classes = [...(STATE._classes||[]), cls].sort((a,b)=>a.name.localeCompare(b.name));
+    renderClassList(STATE._classes, 'class-list', false);
+    renderClassList(STATE._classes, 'roster-class-list', true);
+    toast(`Class "${name}" created`,'success');
+  } catch(err) { toast('Failed to create class: '+err.message,'error'); }
+}
+
+async function doEditClass(classId) {
+  const name = document.getElementById('edit-class-name')?.value.trim();
+  if (!name) { toast('Please enter a class name','warning'); return; }
+  try {
+    const {error} = await db.from('classes').update({name}).eq('id', classId);
+    if (error) throw error;
+    closeModal();
+    const cls = (STATE._classes||[]).find(c => c.id === classId);
+    if (cls) { cls.name = name; }
+    STATE._classes = (STATE._classes||[]).sort((a,b)=>a.name.localeCompare(b.name));
+    renderClassList(STATE._classes, 'class-list', false);
+    renderClassList(STATE._classes, 'roster-class-list', true);
+    if (STATE._selectedClassId === classId) document.getElementById('roster-class-name').textContent = name;
+    toast('Class renamed','success');
+  } catch(err) { toast('Failed to rename: '+err.message,'error'); }
+}
+
+// CSV Import
+function showCsvImportModal() {
+  openModal(`<div class="modal-header"><h3>Import from CSV</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p style="margin-bottom:var(--space-md);color:var(--pt-muted);font-size:var(--text-sm)">One name per row. Names will be added to the current roster — existing names are not removed.</p>
+      <div class="source-drop-zone" style="margin-bottom:var(--space-sm)" id="csv-drop-zone"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="event.preventDefault();this.classList.remove('drag-over');handleCsvFile(event.dataTransfer.files[0])">
+        <input type="file" accept=".csv,.txt" onchange="handleCsvFile(this.files[0])" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+        <div class="source-drop-zone-label"><strong>Choose CSV file</strong> or drag and drop</div>
+      </div>
+      <div id="csv-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="csv-import-btn" disabled onclick="doImportCsv()">Import</button>
+    </div>`);
+}
+
+let _csvParsed = [];
+function handleCsvFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    _csvParsed = lines;
+    const preview = document.getElementById('csv-preview');
+    const btn = document.getElementById('csv-import-btn');
+    if (!lines.length) { preview.innerHTML='<p style="color:var(--pt-muted);font-size:var(--text-sm)">No names found.</p>'; btn.disabled=true; return; }
+    preview.innerHTML = `<p style="font-size:var(--text-sm);color:var(--pt-muted);margin-bottom:0.5rem">${lines.length} name${lines.length!==1?'s':''} found:</p>
+      <div style="max-height:140px;overflow-y:auto;background:var(--pt-light);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font-size:var(--text-sm)">${lines.map(l=>`<div>${esc(l)}</div>`).join('')}</div>`;
+    btn.disabled = false;
+  };
+  reader.readAsText(file);
+}
+
+async function doImportCsv() {
+  const classId = STATE._selectedClassId;
+  if (!classId || !_csvParsed.length) return;
+  const cls = (STATE._classes||[]).find(c => c.id === classId);
+  if (!cls) return;
+  const existing = new Set((cls.student_roster||[]).map(s=>(typeof s==='string'?s:s.name).toLowerCase()));
+  const toAdd = _csvParsed.filter(n => !existing.has(n.toLowerCase())).map(name => ({name, extended_minutes: null}));
+  const roster = [...(cls.student_roster||[]), ...toAdd];
+  await saveRoster(classId, roster);
+  closeModal();
+  _csvParsed = [];
+  toast(`${toAdd.length} student${toAdd.length!==1?'s':''} added`,'success');
+}
+
+
+
 function renderAssignmentList(assignments) {
   const el=document.getElementById('assignment-list');
   if(!assignments.length){el.innerHTML='<div class="empty-panel">No assignments yet. Create one above.</div>';return;}
-  const ptLabels={timed_essay:'Timed Essay',document_based:'Document-Based',open_response:'Open Response',source_analysis:'Source Analysis'};
+  const ptLabels={essay:'Essay', document_based:'Document-Based', source_analysis:'Source Analysis'};
   el.innerHTML=assignments.map(a=>{
     const isActive=a._status==='active';
     const isPaused=a._status==='paused';
@@ -511,7 +920,9 @@ function renderAssignmentList(assignments) {
       :isPaused
         ?`<span class="pill" style="background:#fff8e1;color:var(--warning);border-color:#f0c040">Paused</span>`
         :`<span class="pill pill-inactive">Draft</span>`;
-    const ptLabel=ptLabels[a.prompt_type]||'Timed Essay';
+    const ptLabel=ptLabels[a.prompt_type]||'Essay';
+    const className = a.class_id ? ((STATE._classes||[]).find(c=>c.id===a.class_id)?.name||'') : '';
+    const classPart = className ? ` · ${esc(className)}` : '';
     const sessionActions=isActive
       ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="pauseSession('${a.id}','${sessionId}')">Pause</button>
          <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End</button>`
@@ -524,7 +935,7 @@ function renderAssignmentList(assignments) {
        <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>`;
     return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
-      <div class="assignment-item-meta">${ptLabel} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'} · Code: <code style="font-family:'DM Mono',monospace">${esc(a._joinCode||'—')}</code></div>
+      <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'} · Code: <code style="font-family:'DM Mono',monospace">${esc(a._joinCode||'—')}</code></div>
       <div style="margin-top:0.35rem">${statusPill}</div>
       <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
     </div>`;
@@ -542,7 +953,7 @@ function selectPromptType(btn) {
 
 function cancelEditAssignment() {
   STATE.editingAssignmentId = null;
-  STATE.selectedPromptType = 'timed_essay';
+  STATE.selectedPromptType = 'essay';
   STATE.formSources = [];
   document.getElementById('a-title').value = '';
   document.getElementById('a-prompt').value = '';
@@ -551,7 +962,9 @@ function cancelEditAssignment() {
   document.getElementById('a-grade').value = '';
   document.getElementById('a-subject').value = '';
   document.getElementById('a-spellcheck').checked = false;
-  document.querySelectorAll('#a-prompt-type-ctrl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val==='timed_essay'));
+  const classSel = document.getElementById('a-class');
+  if (classSel) classSel.value = '';
+  document.querySelectorAll('#a-prompt-type-ctrl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val==='essay'));
   document.getElementById('a-sources-group').style.display = 'none';
   renderFormSources();
   document.getElementById('assignment-form-title').textContent = 'New Assignment';
@@ -561,7 +974,7 @@ function cancelEditAssignment() {
 
 function loadAssignmentIntoForm(a, sources=[]) {
   STATE.editingAssignmentId = a.id;
-  STATE.selectedPromptType = a.prompt_type || 'timed_essay';
+  STATE.selectedPromptType = a.prompt_type || 'essay';
   // Populate formSources from DB rows
   STATE.formSources = sources.map(s => ({...s, _file: null, _uploading: false}));
   document.getElementById('a-title').value = a.title || '';
@@ -571,6 +984,8 @@ function loadAssignmentIntoForm(a, sources=[]) {
   document.getElementById('a-grade').value = a.grade_level || '';
   document.getElementById('a-subject').value = a.subject || '';
   document.getElementById('a-spellcheck').checked = a.allow_spellcheck || false;
+  const classSel = document.getElementById('a-class');
+  if (classSel) classSel.value = a.class_id || '';
   document.querySelectorAll('#a-prompt-type-ctrl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val===STATE.selectedPromptType));
   const needsSources = ['document_based','source_analysis'].includes(STATE.selectedPromptType);
   document.getElementById('a-sources-group').style.display = needsSources ? 'block' : 'none';
@@ -592,14 +1007,21 @@ async function createAssignment() {
   const gradeLevel=document.getElementById('a-grade').value||null;
   const subject=document.getElementById('a-subject').value||null;
   const allowSpellcheck=document.getElementById('a-spellcheck').checked;
-  const promptType=STATE.selectedPromptType||'timed_essay';
+  const promptType=STATE.selectedPromptType||'essay';
+  const classId=document.getElementById('a-class')?.value||null;
   if(!title){toast('Please enter an assignment title','warning');return;}
   if(!joinCode){toast('Please enter a join code','warning');return;}
   if(minutes!==null&&(minutes<5||minutes>300)){toast('Time must be between 5 and 300 minutes (or leave blank for no limit)','warning');return;}
   const btn=document.getElementById('create-assignment-btn');
   btn.disabled=true;
+  // Check plan limits for new assignments (not edits)
+  if (!STATE.editingAssignmentId) {
+    const limited = await checkPlanLimit('assignment', user.id);
+    if (limited) { btn.disabled=false; return; }
+  }
   const payload={
     teacher_id:user.id, title, join_code:joinCode,
+    class_id: classId||null,
     prompt_type:promptType, prompt_text:promptText||null,
     time_limit_minutes:minutes,
     allow_spellcheck:allowSpellcheck,
@@ -1041,7 +1463,7 @@ async function previewAssignment(id) {
   STATE.assignmentId=a.id;
   STATE.assignmentTitle=a.title;
   STATE.assignmentPromptText=a.prompt_text||'';
-  STATE.assignmentPromptType=a.prompt_type||'timed_essay';
+  STATE.assignmentPromptType=a.prompt_type||'essay';
   STATE.assignmentAllowSpellcheck=false;
   STATE.timeLimitSeconds=(a.time_limit_minutes||0)*60;
   STATE.studentName='Preview';
