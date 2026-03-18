@@ -15,6 +15,7 @@ const STATE = {
   pendingBurstChars: 0, burstCheckInterval: null,
   _visibilityHandler: null, _blurHandler: null, _focusHandler: null,
   selectedAssignmentId: null, allSubmissions: [], expandedSubId: null,
+  selectedSessionId: null,  // which session is shown in the right panel
   realtimeChannel: null,
   pauseCountdownInterval: null,
   isPreview: false,
@@ -380,12 +381,12 @@ function enterWritingMode(savedText) {
   STATE.burstCheckInterval=setInterval(checkBurstAndIdle,3000);
   attachProcessListeners(editor);
   STATE._visibilityHandler=()=>{
-    if(document.hidden){STATE._blurStartTime=Date.now();logEvent('window_blur',{content_preview:'Window left focus'});}
-    else if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEvent('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}
+    if(document.hidden){STATE._blurStartTime=Date.now();logEventImmediate('window_blur',{content_preview:'Window left focus'});}
+    else if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEventImmediate('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}
   };
   document.addEventListener('visibilitychange',STATE._visibilityHandler);
-  STATE._blurHandler=()=>{if(!document.hidden){STATE._blurStartTime=Date.now();logEvent('window_blur',{content_preview:'Window left focus'});}};
-  STATE._focusHandler=()=>{if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEvent('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}};
+  STATE._blurHandler=()=>{if(!document.hidden){STATE._blurStartTime=Date.now();logEventImmediate('window_blur',{content_preview:'Window left focus'});}};
+  STATE._focusHandler=()=>{if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEventImmediate('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}};
   window.addEventListener('blur',STATE._blurHandler);
   window.addEventListener('focus',STATE._focusHandler);
   setTimeout(()=>{const ta=document.getElementById('essay-textarea');if(ta)ta.focus();},100);
@@ -478,12 +479,15 @@ async function manualSave(){await autosave();toast('Saved','success',1500);}
 // ── PROCESS LOGGING ──
 function attachProcessListeners(editor) {
   editor.addEventListener('keydown',()=>{
-    if(!STATE.firstKeystrokeLogged){STATE.firstKeystrokeLogged=true;logEvent('first_keystroke',{content_preview:`Writing began at ${formatElapsed(elapsedSeconds())}`});}
+    if(!STATE.firstKeystrokeLogged){
+      STATE.firstKeystrokeLogged=true;
+      logEventImmediate('first_keystroke',{content_preview:`Writing began at ${formatElapsed(elapsedSeconds())}`});
+    }
   });
   editor.addEventListener('paste',(e)=>{
     const p=(e.clipboardData||window.clipboardData).getData('text')||'';
     if(!p.length) return;
-    logEvent('paste',{char_count:p.length,content_preview:p.slice(0,80)});
+    logEventImmediate('paste',{char_count:p.length,content_preview:p.slice(0,80)});
     const cap=editor.value.length+p.length;
     setTimeout(()=>checkPasteThenDelete(cap),90000);
   });
@@ -509,6 +513,22 @@ function checkBurstAndIdle() {
 }
 function logEvent(type,extras={}) {
   STATE.processLog.push({type,timestamp:new Date().toISOString(),elapsed_seconds:elapsedSeconds(),char_count:extras.char_count||0,content_preview:extras.content_preview||''});
+}
+
+// Logs event AND immediately writes process_log to DB — used for high-signal events
+// so the teacher sees paste/blur in real time without waiting for autosave
+async function logEventImmediate(type, extras={}) {
+  logEvent(type, extras);
+  if (!STATE.submissionId || STATE.isSubmitted) return;
+  try {
+    await db.from('submissions').update({
+      process_log: STATE.processLog,
+      last_active_at: new Date().toISOString(),
+    }).eq('id', STATE.submissionId);
+  } catch(err) {
+    // Fail silently — autosave will sync on next cycle
+    console.warn('Immediate event write failed:', err.message);
+  }
 }
 
 // ── SUBMIT ──
@@ -949,6 +969,26 @@ function selectPromptType(btn) {
   STATE.selectedPromptType = btn.dataset.val;
   const needsSources = ['document_based','source_analysis'].includes(STATE.selectedPromptType);
   document.getElementById('a-sources-group').style.display = needsSources ? 'block' : 'none';
+  // Enforce source limit per type
+  const maxSources = STATE.selectedPromptType === 'document_based' ? 1 : 8;
+  // Trim sources if switching to document-based with more than 1
+  if (STATE.selectedPromptType === 'document_based' && STATE.formSources.length > 1) {
+    STATE.formSources = STATE.formSources.slice(0, 1);
+    toast('Document-Based uses one source. Extra sources removed.', 'default', 3000);
+  }
+  // Update the add button hint
+  const hint = document.getElementById('a-source-max-hint');
+  if (hint) hint.textContent = STATE.selectedPromptType === 'document_based' ? '1 source maximum' : 'Up to 8 sources';
+  renderFormSources();
+  updateAddSourceBtn();
+}
+
+function updateAddSourceBtn() {
+  const btn = document.getElementById('a-add-source-btn');
+  if (!btn) return;
+  const max = STATE.selectedPromptType === 'document_based' ? 1 : 8;
+  btn.disabled = STATE.formSources.length >= max;
+  btn.title = STATE.formSources.length >= max ? `${max === 1 ? 'Document-Based uses only 1 source' : 'Maximum 8 sources reached'}` : '';
 }
 
 function cancelEditAssignment() {
@@ -1052,10 +1092,10 @@ async function createAssignment() {
 function renderFormSources() {
   const list = document.getElementById('a-sources-list');
   if (!list) return;
+  const max = STATE.selectedPromptType === 'document_based' ? 1 : 8;
   const countEl = document.getElementById('a-source-count');
-  const addBtn = document.getElementById('a-add-source-btn');
-  if (countEl) countEl.textContent = STATE.formSources.length;
-  if (addBtn) addBtn.disabled = STATE.formSources.length >= 8;
+  if (countEl) countEl.textContent = `${STATE.formSources.length} / ${max}`;
+  updateAddSourceBtn();
 
   if (!STATE.formSources.length) {
     list.innerHTML = '<div style="padding:0.75rem 1rem;font-size:var(--text-xs);color:var(--pt-muted)">No sources yet. Click "+ Add Source" to add one.</div>';
@@ -1230,13 +1270,24 @@ async function loadSources(assignmentId) {
     // Generate fresh signed URLs for file-based sources
     for (const src of sources) {
       if (src.storage_path) {
-        const { data: urlData } = await db.storage
-          .from('assignment-sources')
-          .createSignedUrl(src.storage_path, 3600); // 1-hour expiry
-        src.storage_url = urlData?.signedUrl || null;
+        try {
+          const { data: urlData, error: urlErr } = await db.storage
+            .from('assignment-sources')
+            .createSignedUrl(src.storage_path, 3600);
+          if (urlErr) {
+            console.warn('Signed URL failed for', src.storage_path, urlErr.message);
+            src.storage_url = null;
+          } else {
+            src.storage_url = urlData?.signedUrl || null;
+          }
+        } catch(urlEx) {
+          console.warn('Signed URL exception:', urlEx.message);
+          src.storage_url = null;
+        }
       }
     }
     STATE.studentSources = sources;
+    console.log('Sources loaded:', sources.length, sources.map(s=>({type:s.source_type, hasUrl:!!s.storage_url, hasText:!!s.text_content})));
   } catch(err) {
     console.error('Failed to load sources:', err);
   }
@@ -1258,38 +1309,30 @@ function renderSourcePanel() {
   container.style.display = 'block';
 
   if (promptType === 'document_based') {
-    // Split layout: source pane left, essay pane right
+    // Split layout: source pane left, resize handle, essay pane right
     defaultMain.style.display = 'none';
     container.innerHTML = `
-      <div class="writing-split">
-        <div class="source-pane">
+      <div class="writing-split" id="writing-split">
+        <div class="source-pane" id="source-pane">
           <div class="source-pane-header">
-            <span class="source-pane-title">Source Materials</span>
-            <span style="font-size:var(--text-xs);color:rgba(255,255,255,0.35)">${sources.length} source${sources.length!==1?'s':''}</span>
+            <span class="source-pane-title">Source</span>
+            <span style="font-size:var(--text-xs);color:rgba(255,255,255,0.35)">Read only</span>
           </div>
           <div class="source-pane-body" id="source-pane-body"></div>
         </div>
+        <div class="split-resize-handle" id="split-resize-handle" title="Drag to resize"></div>
         <div class="essay-pane">
           <textarea id="essay-textarea" placeholder="Begin writing here…"
             spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
         </div>
       </div>`;
 
-    // Render sources into pane body
+    // Render the single source (document-based only ever has 1)
     const paneBody = document.getElementById('source-pane-body');
-    sources.forEach((src, i) => {
-      const wrap = document.createElement('div');
-      if (i > 0) wrap.style.borderTop = '1px solid var(--pt-border)';
-      if (src.label) {
-        const lbl = document.createElement('div');
-        lbl.style.cssText = 'font-size:var(--text-xs);font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--pt-muted);padding:0.5rem 0 0.25rem';
-        lbl.textContent = src.label;
-        wrap.appendChild(lbl);
-      }
-      renderSourceContent(src, wrap);
-      paneBody.appendChild(wrap);
-    });
+    const src = sources[0];
+    renderSourceContent(src, paneBody);
     disableSourcePaneRightClick(paneBody);
+    initResizeHandle();
 
   } else {
     // Source Analysis: tabbed layout above textarea
@@ -1338,6 +1381,58 @@ function switchSourceTab(idx) {
 function disableSourcePaneRightClick(el) {
   if (!el) return;
   el.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function initResizeHandle() {
+  const handle = document.getElementById('split-resize-handle');
+  const split = document.getElementById('writing-split');
+  const pane = document.getElementById('source-pane');
+  if (!handle || !split || !pane) return;
+
+  let dragging = false;
+  let startX, startWidth;
+
+  handle.addEventListener('mousedown', (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startWidth = pane.offsetWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    const newWidth = Math.min(Math.max(startWidth + delta, 200), split.offsetWidth - 300);
+    pane.style.width = newWidth + 'px';
+    pane.style.maxWidth = newWidth + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  // Touch support
+  handle.addEventListener('touchstart', (e) => {
+    dragging = true;
+    startX = e.touches[0].clientX;
+    startWidth = pane.offsetWidth;
+    e.preventDefault();
+  }, {passive:false});
+
+  document.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+    const delta = e.touches[0].clientX - startX;
+    const newWidth = Math.min(Math.max(startWidth + delta, 200), split.offsetWidth - 300);
+    pane.style.width = newWidth + 'px';
+    pane.style.maxWidth = newWidth + 'px';
+  }, {passive:true});
+
+  document.addEventListener('touchend', () => { dragging = false; });
 }
 
 async function renderSourceContent(src, container) {
@@ -1533,7 +1628,7 @@ async function endAssignment(assignmentId,sessionId,title) {
     <div class="modal-header"><h3>End assignment</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p style="margin-bottom:var(--space-md)"><strong>${esc(title)}</strong></p>
-      <div class="disclaimer" style="margin-bottom:var(--space-md)">Download the session report before ending. Once ended, all student submission data will be permanently deleted from PaperTrail's servers within 24 hours.</div>
+      <div class="disclaimer" style="margin-bottom:var(--space-md)">Download the session report before ending. Once ended, <strong>this session's</strong> student submission data will be permanently deleted. The assignment stays open — you can run it again with a new session.</div>
       <button class="btn btn-secondary btn-block" id="download-report-btn" onclick="downloadReportZip(${JSON.stringify(reportData).replace(/"/g,'&quot;')})">↓ Download Session Report</button>
       <div style="margin-top:var(--space-md);display:none" id="end-confirm-section">
         <label style="display:flex;gap:0.75rem;align-items:flex-start;cursor:pointer;font-size:var(--text-sm)">
@@ -1581,9 +1676,14 @@ async function doEndAssignment(assignmentId,sessionId) {
   try {
     await db.from('submissions').delete().eq('session_id',sessionId);
     await db.from('sessions').update({status:'ended',ended_at:new Date().toISOString()}).eq('id',sessionId);
-    if(STATE.selectedAssignmentId===assignmentId){STATE.selectedAssignmentId=null;STATE.allSubmissions=[];document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">Select an assignment on the left.</div>';document.getElementById('sub-count').textContent='Select an assignment to view its session report.';document.getElementById('export-btn').disabled=true;}
-    toast('Assignment ended — student data deleted','success'); loadDashboard();
-  } catch(err){toast('Failed to end assignment: '+err.message,'error');}
+    // Clear selected session so loadSubmissions picks the next best one
+    if (STATE.selectedSessionId === sessionId) STATE.selectedSessionId = null;
+    unsubscribeLiveSession();
+    toast('Session ended — student data deleted','success');
+    loadDashboard();
+    // Reload submissions panel to show remaining sessions
+    if (STATE.selectedAssignmentId === assignmentId) loadSubmissions(assignmentId);
+  } catch(err){toast('Failed to end session: '+err.message,'error');}
 }
 
 async function deleteAssignment(id,title) {
@@ -1616,21 +1716,89 @@ function selectAssignment(id){
 async function loadSubmissions(assignmentId) {
   document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:2rem">Loading…</div>';
   try {
-    // Find most recent non-ended session for this assignment
-    const {data:sessions}=await db.from('sessions').select('id').eq('assignment_id',assignmentId).neq('status','ended').order('started_at',{ascending:false}).limit(1);
-    if(!sessions||!sessions.length){
-      STATE.allSubmissions=[];
-      document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">No active session for this assignment yet.</div>';
-      document.getElementById('sub-count').textContent='No session data.';
-      document.getElementById('export-btn').disabled=true;
+    // Fetch ALL sessions for this assignment, newest first
+    const {data:sessions, error:sErr} = await db.from('sessions')
+      .select('id, status, join_code, started_at, ended_at')
+      .eq('assignment_id', assignmentId)
+      .order('started_at', {ascending: false});
+    if (sErr) throw sErr;
+
+    if (!sessions || !sessions.length) {
+      STATE.allSubmissions = [];
+      document.getElementById('submissions-table-wrap').innerHTML = '<div class="empty-panel" style="padding:3rem">No sessions yet for this assignment.</div>';
+      document.getElementById('sub-count').textContent = 'No session data.';
+      document.getElementById('export-btn').disabled = true;
       return;
     }
-    const sessionId=sessions[0].id;
-    const {data,error}=await db.from('submissions').select('*').eq('session_id',sessionId).order('started_at',{ascending:true});
-    if(error) throw error;
-    STATE.allSubmissions=data||[]; renderSubmissionsTable(data||[]);
-    document.getElementById('export-btn').disabled=!data||!data.length;
-  } catch(err){toast('Failed to load session report: '+err.message,'error');}
+
+    // Pick session to show: prefer the one in STATE.selectedSessionId if it belongs to this assignment,
+    // otherwise default to the most recent non-ended, or most recent overall
+    const activeSess = sessions.find(s => s.status === 'active' || s.status === 'paused');
+    const targetSession = sessions.find(s => s.id === STATE.selectedSessionId)
+      || activeSess
+      || sessions[0];
+    STATE.selectedSessionId = targetSession.id;
+
+    // Render session selector if multiple sessions exist
+    renderSessionSelector(sessions, targetSession.id, assignmentId);
+
+    // Load submissions for target session
+    const {data, error} = await db.from('submissions').select('*')
+      .eq('session_id', targetSession.id)
+      .order('started_at', {ascending: true});
+    if (error) throw error;
+    STATE.allSubmissions = data || [];
+    renderSubmissionsTable(data || []);
+    document.getElementById('export-btn').disabled = !data || !data.length;
+  } catch(err) { toast('Failed to load session report: '+err.message,'error'); }
+}
+
+function renderSessionSelector(sessions, activeId, assignmentId) {
+  // Only show selector if more than 1 session
+  const toolbar = document.getElementById('sub-toolbar');
+  if (!toolbar) return;
+
+  // Remove existing session selector if present
+  const existing = document.getElementById('session-selector-wrap');
+  if (existing) existing.remove();
+
+  if (sessions.length <= 1) return;
+
+  const statusLabel = s => {
+    if (s.status === 'active') return '<span style="color:var(--success);font-weight:600">● Active</span>';
+    if (s.status === 'paused') return '<span style="color:var(--warning);font-weight:600">⏸ Paused</span>';
+    return '<span style="color:var(--pt-muted)">Ended</span>';
+  };
+
+  const options = sessions.map(s =>
+    `<option value="${s.id}" ${s.id===activeId?'selected':''}>${formatTime(s.started_at)} — ${s.join_code} — ${s.status}</option>`
+  ).join('');
+
+  const wrap = document.createElement('div');
+  wrap.id = 'session-selector-wrap';
+  wrap.style.cssText = 'padding:0.5rem var(--space-md);background:#f8f6fd;border-bottom:1px solid var(--pt-border);display:flex;align-items:center;gap:0.75rem;font-size:var(--text-sm)';
+  wrap.innerHTML = `<span style="color:var(--pt-muted);font-size:var(--text-xs);font-weight:600;letter-spacing:0.06em;text-transform:uppercase">Session</span>
+    <select style="flex:1;padding:0.35rem 0.6rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:var(--text-sm);color:var(--pt-ink)"
+      onchange="switchSession('${assignmentId}', this.value)">${options}</select>
+    <span style="font-size:var(--text-xs);color:var(--pt-muted)">${sessions.length} sessions total</span>`;
+  toolbar.insertAdjacentElement('afterend', wrap);
+}
+
+async function switchSession(assignmentId, sessionId) {
+  STATE.selectedSessionId = sessionId;
+  STATE.expandedSubId = null;
+  // Re-subscribe Realtime if switching to an active session
+  unsubscribeLiveSession();
+  const {data:sess} = await db.from('sessions').select('status').eq('id',sessionId).single();
+  if (sess && (sess.status==='active'||sess.status==='paused')) {
+    subscribeToLiveSession(sessionId);
+  }
+  const {data, error} = await db.from('submissions').select('*')
+    .eq('session_id', sessionId).order('started_at', {ascending:true});
+  if (error) { toast('Failed to load session','error'); return; }
+  STATE.allSubmissions = data||[];
+  renderSubmissionsTable(data||[]);
+  document.getElementById('export-btn').disabled = !data||!data.length;
 }
 
 function renderSubmissionsTable(submissions) {
@@ -1694,14 +1862,14 @@ async function exportTSV() {
     if(typeof JSZip !== 'undefined') {
       const zip=new JSZip();
       zip.file('session-report.tsv',tsv);
-      zip.file('session-report.json',JSON.stringify({session:{assignment_id:STATE.selectedAssignmentId},submissions:subs},null,2));
+      zip.file('session-report.json',JSON.stringify({session:{assignment_id:STATE.selectedAssignmentId,session_id:STATE.selectedSessionId},submissions:subs},null,2));
       const blob=await zip.generateAsync({type:'blob'});
       const url=URL.createObjectURL(blob),a=document.createElement('a');
-      a.href=url;a.download=`session-report-${STATE.selectedAssignmentId}.zip`;a.click();URL.revokeObjectURL(url);
+      a.href=url;a.download=`session-report-${STATE.selectedSessionId||STATE.selectedAssignmentId}.zip`;a.click();URL.revokeObjectURL(url);
       toast('Report ZIP downloaded','success',3000);
     } else {
       try{await navigator.clipboard.writeText(tsv);toast('Tab-separated data copied — paste into Google Sheets','success',4000);}
-      catch(e){const blob=new Blob([tsv],{type:'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`session-report-${STATE.selectedAssignmentId}.tsv`;a.click();URL.revokeObjectURL(url);}
+      catch(e){const blob=new Blob([tsv],{type:'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`session-report-${STATE.selectedSessionId||STATE.selectedAssignmentId}.tsv`;a.click();URL.revokeObjectURL(url);}
     }
   } catch(err){toast('Export failed: '+err.message,'error');}
   finally{if(btn){btn.disabled=false;btn.textContent='↓ Export Report';}}
