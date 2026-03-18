@@ -120,7 +120,10 @@
     </div>
     <div class="prompt-panel-body open" id="prompt-body"></div>
   </div>
-  <div class="writing-main">
+  <!-- Source panel — hidden by default; JS sets layout based on prompt type -->
+  <div id="source-panel-container" style="display:none"></div>
+  <!-- Default writing-main — hidden when split layout is active -->
+  <div class="writing-main" id="writing-main-default">
     <textarea id="essay-textarea" placeholder="Begin writing here…"
       spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
   </div>
@@ -336,6 +339,18 @@
               <label>Prompt Text</label>
               <textarea class="form-input" id="a-prompt" rows="4" placeholder="Write the assignment prompt students will see…" style="resize:vertical;min-height:80px"></textarea>
             </div>
+            <!-- Sources — shown for document_based and source_analysis only -->
+            <div class="form-group" id="a-sources-group" style="display:none">
+              <label>Source Materials</label>
+              <div class="sources-section">
+                <div class="sources-header">
+                  <span class="sources-header-label">Sources <span id="a-source-count">0</span> / 8</span>
+                  <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.75rem" onclick="addSource()" id="a-add-source-btn">+ Add Source</button>
+                </div>
+                <div id="a-sources-list"></div>
+              </div>
+              <div class="form-hint">Students see sources in a read-only panel alongside their writing area.</div>
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Join Code</label>
@@ -416,6 +431,8 @@
 <div id="toast-container"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
 </body>
