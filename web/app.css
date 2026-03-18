@@ -158,13 +158,14 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .transparency-bar { background: rgba(123,94,167,0.15); border-bottom: 1px solid rgba(123,94,167,0.2); padding: 0.35rem var(--space-lg); font-size: var(--text-xs); color: var(--pt-write-l); font-weight: 500; letter-spacing: 0.04em; display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
 .transparency-bar-dot { width: 6px; height: 6px; background: var(--pt-write-l); border-radius: 50%; animation: pulse 2s infinite; }
 .writing-main { flex: 1; display: flex; flex-direction: column; max-width: 900px; width: 100%; margin: 0 auto; padding: var(--space-lg); min-height: 0; overflow-y: auto; }
-#source-panel-container { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+#source-panel-container { flex: 1; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
+#source-panel-container.active { display: flex; }
+.writing-footer { width: 100%; padding: var(--space-sm) var(--space-lg); flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; background: var(--pt-light); border-top: 1px solid var(--pt-border); }
+.writing-footer-left { font-size: var(--text-xs); color: var(--pt-muted); }
 #essay-textarea { flex: 1; width: 100%; min-height: 0; height: 100%; padding: 1.75rem 2rem; font-family: 'DM Sans', sans-serif; font-size: var(--text-lg); line-height: 1.9; color: var(--pt-ink); background: var(--pt-surface); border: 1.5px solid var(--pt-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); resize: none; transition: border-color var(--t); overflow-y: auto; }
 #essay-textarea:focus { outline: none; border-color: var(--pt-write); box-shadow: var(--shadow-card), 0 0 0 3px rgba(123,94,167,0.08); }
 #essay-textarea:disabled { background: var(--pt-light); cursor: not-allowed; color: var(--pt-muted); }
 #essay-textarea::placeholder { color: var(--pt-border); }
-.writing-footer { width: 100%; max-width: 900px; margin: 0 auto; padding: var(--space-sm) var(--space-lg); flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; background: var(--pt-light); border-top: 1px solid var(--pt-border); }
-.writing-footer-left { font-size: var(--text-xs); color: var(--pt-muted); }
 
 /* ── PROMPT PANEL ── */
 .prompt-panel { max-width: 900px; width: 100%; margin: 0 auto; padding: var(--space-md) var(--space-lg) 0; flex-shrink: 0; }
@@ -249,7 +250,10 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .assignment-item.archived-assignment .assignment-item-title { color: var(--pt-muted); }
 .assignment-item-title { font-weight: 600; font-size: var(--text-sm); color: var(--pt-ink); margin-bottom: 0.2rem; }
 .assignment-item-meta { font-size: var(--text-xs); color: var(--pt-muted); }
-.assignment-item-actions { display: flex; gap: 0.35rem; margin-top: 0.5rem; }
+.assignment-item-actions { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+.assignment-actions-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.assignment-actions-primary .btn { flex: 1; font-size: var(--text-sm); padding: 0.45rem 0.75rem; justify-content: center; }
+.assignment-actions-secondary .btn { font-size: 0.72rem; padding: 0.3rem 0.65rem; }
 .pill { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.18rem 0.5rem; border-radius: 20px; border: 1px solid; }
 .pill-active { background: #eaf5ef; color: var(--success); border-color: #a9d9be; }
 .pill-active::before { content: '●'; font-size: 0.45rem; }
