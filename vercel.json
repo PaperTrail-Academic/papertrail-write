@@ -1,4 +1,0 @@
-{
-  "buildCommand": "node scripts/inject-env.js",
-  "outputDirectory": "web"
-}
