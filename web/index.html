@@ -631,7 +631,7 @@ const db = createClient(
 );
 const STATE = {
   teacher: null, teacherProfile: null,
-  submissionId: null, assignmentId: null, assignmentTitle: null,
+  submissionId: null, sessionId: null, assignmentId: null, assignmentTitle: null,
   timeLimitSeconds: 0, studentName: null, period: null, startedAt: null,
   timerInterval: null, autosaveInterval: null, processLog: [], isSubmitted: false,
   firstKeystrokeLogged: false, _blurStartTime: null,
@@ -794,34 +794,43 @@ async function setNewPassword() {
 async function studentLogin() {
   const name=document.getElementById('s-name').value.trim();
   const period=document.getElementById('s-period').value.trim();
-  const password=document.getElementById('s-password').value.trim().toUpperCase();
+  const joinCode=document.getElementById('s-password').value.trim().toUpperCase();
   const statusEl=document.getElementById('s-status');
   const btn=document.getElementById('s-login-btn');
   statusEl.className='status-msg';
-  if(!name||!password){statusEl.className='status-msg error';statusEl.textContent='Please enter both a join code and your name.';return;}
+  if(!name||!joinCode){statusEl.className='status-msg error';statusEl.textContent='Please enter both a join code and your name.';return;}
   btn.disabled=true; btn.textContent='Checking…';
   try {
-    const {data:assignments,error:aErr}=await db.from('assignments').select('*').eq('is_active',true).eq('password',password);
+    // Look up active session by join code
+    const {data:sessions,error:sessErr}=await db.from('sessions').select('*').eq('join_code',joinCode).eq('status','active');
+    if(sessErr) throw sessErr;
+    if(!sessions||!sessions.length){statusEl.className='status-msg error';statusEl.textContent='No active session found with that join code. Ask your teacher to check.';return;}
+    const session=sessions[0];
+    // Fetch the assignment for this session
+    const {data:assignment,error:aErr}=await db.from('assignments').select('*').eq('id',session.assignment_id).single();
     if(aErr) throw aErr;
-    if(!assignments||!assignments.length){statusEl.className='status-msg error';statusEl.textContent='No active session found with that join code. Ask your teacher to check.';return;}
-    const assignment=assignments[0];
-    const {data:existing,error:sErr}=await db.from('submissions').select('*').eq('assignment_id',assignment.id).eq('student_name',name).maybeSingle();
+    // Check for existing submission in this session
+    const {data:existing,error:sErr}=await db.from('submissions').select('*').eq('session_id',session.id).eq('student_name',name).maybeSingle();
     if(sErr) throw sErr;
+    STATE.sessionId=session.id;
     if(existing) {
       if(existing.is_submitted){loadSubmittedScreen(existing);showScreen('submitted');return;}
       STATE.submissionId=existing.id; STATE.assignmentId=assignment.id;
-      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=assignment.time_limit_minutes*60;
+      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=(assignment.time_limit_minutes||0)*60;
       STATE.studentName=name; STATE.period=period; STATE.startedAt=existing.started_at;
       STATE.processLog=existing.process_log||[]; STATE.isSubmitted=false;
     } else {
       const now=new Date().toISOString();
       const {data:newSub,error:nErr}=await db.from('submissions').insert({
-        assignment_id:assignment.id,student_name:name,class_period:period,
+        session_id:session.id,
+        assignment_id:assignment.id,
+        teacher_id:assignment.teacher_id,
+        student_name:name,class_period:period,
         essay_text:'',word_count:0,process_log:[],started_at:now,is_submitted:false,
       }).select().single();
       if(nErr) throw nErr;
       STATE.submissionId=newSub.id; STATE.assignmentId=assignment.id;
-      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=assignment.time_limit_minutes*60;
+      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=(assignment.time_limit_minutes||0)*60;
       STATE.studentName=name; STATE.period=period; STATE.startedAt=now;
       STATE.processLog=[]; STATE.isSubmitted=false;
     }
@@ -985,9 +994,19 @@ async function loadDashboard() {
   try {
     const {data:{user}}=await db.auth.getUser();
     if(!user){showScreen('teacher-login');return;}
-    const {data,error}=await db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false});
-    if(error) throw error;
-    renderAssignmentList(data||[]);
+    const {data:assignments,error:aErr}=await db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false});
+    if(aErr) throw aErr;
+    const {data:sessions,error:sErr}=await db.from('sessions').select('*').eq('teacher_id',user.id).neq('status','ended');
+    if(sErr) throw sErr;
+    const sessionsByAssignment={};
+    (sessions||[]).forEach(s=>{ sessionsByAssignment[s.assignment_id]=s; });
+    const merged=(assignments||[]).map(a=>({
+      ...a,
+      _session: sessionsByAssignment[a.id]||null,
+      _status: sessionsByAssignment[a.id]?.status||'draft',
+      _joinCode: sessionsByAssignment[a.id]?.join_code||a.join_code||'—',
+    }));
+    renderAssignmentList(merged);
     if(STATE.selectedAssignmentId) loadSubmissions(STATE.selectedAssignmentId);
   } catch(err) { toast('Failed to load assignments: '+err.message,'error'); }
 }
@@ -996,51 +1015,102 @@ function refreshDashboard(){loadDashboard();toast('Refreshed','default',1500);}
 function renderAssignmentList(assignments) {
   const el=document.getElementById('assignment-list');
   if(!assignments.length){el.innerHTML='<div class="empty-panel">No assignments yet. Create one above.</div>';return;}
-  el.innerHTML=assignments.map(a=>`
-    <div class="assignment-item ${a.is_active?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''}" onclick="selectAssignment('${a.id}')">
+  el.innerHTML=assignments.map(a=>{
+    const isActive=a._status==='active';
+    const isPaused=a._status==='paused';
+    const sessionId=a._session?.id||null;
+    const statusPill=isActive
+      ?`<span class="pill pill-active">Active</span>`
+      :isPaused
+        ?`<span class="pill" style="background:#fff8e1;color:var(--warning);border-color:#f0c040">Paused</span>`
+        :`<span class="pill pill-inactive">Draft</span>`;
+    const actions=isActive
+      ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="pauseSession('${a.id}','${sessionId}')">Pause</button>
+         <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End</button>`
+      :isPaused
+        ?`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="reopenSession('${a.id}','${sessionId}')">Reopen</button>
+           <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End</button>`
+        :`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="openSession('${a.id}')">Open Session</button>
+           <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>`;
+    return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
-      <div class="assignment-item-meta">${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'} · Code: <code style="font-family:'DM Mono',monospace">${esc(a.password||a.join_code||'—')}</code></div>
-      <div style="margin-top:0.35rem">${a.is_active?`<span class="pill pill-active">Active</span>`:`<span class="pill pill-inactive">Inactive</span>`}</div>
-      <div class="assignment-item-actions" onclick="event.stopPropagation()">
-        ${a.is_active
-          ?`<button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="toggleActive('${a.id}',false)">Deactivate</button>`
-          :`<button class="btn btn-success" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="toggleActive('${a.id}',true)">Activate</button>`}
-        <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.65rem" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>
-      </div>
-    </div>`).join('');
+      <div class="assignment-item-meta">${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'} · Code: <code style="font-family:'DM Mono',monospace">${esc(a._joinCode||'—')}</code></div>
+      <div style="margin-top:0.35rem">${statusPill}</div>
+      <div class="assignment-item-actions" onclick="event.stopPropagation()">${actions}</div>
+    </div>`;
+  }).join('');
 }
 
 async function createAssignment() {
   const {data:{user}}=await db.auth.getUser();
   if(!user){toast('Please sign in again.','error');return;}
   const title=document.getElementById('a-title').value.trim();
-  const password=document.getElementById('a-password').value.trim().toUpperCase();
+  const joinCode=document.getElementById('a-password').value.trim().toUpperCase();
   const minutes=parseInt(document.getElementById('a-time').value)||0;
-  if(!title||!password||!minutes){toast('Please fill in all three fields','warning');return;}
+  if(!title||!joinCode||!minutes){toast('Please fill in all three fields','warning');return;}
   if(minutes<5||minutes>300){toast('Time must be between 5 and 300 minutes','warning');return;}
   try {
-    const {error}=await db.from('assignments').insert({teacher_id:user.id,title,password,join_code:password,prompt_type:'timed_essay',time_limit_minutes:minutes,is_active:false});
+    const {error}=await db.from('assignments').insert({
+      teacher_id:user.id, title, join_code:joinCode,
+      prompt_type:'timed_essay', time_limit_minutes:minutes,
+    });
     if(error) throw error;
     document.getElementById('a-title').value=''; document.getElementById('a-password').value=''; document.getElementById('a-time').value='';
     toast(`"${title}" created`,'success'); loadDashboard();
   } catch(err){toast('Create failed: '+err.message,'error');}
 }
 
-async function toggleActive(assignmentId,makeActive) {
+async function openSession(assignmentId) {
   const {data:{user}}=await db.auth.getUser(); if(!user) return;
   try {
-    if(makeActive) await db.from('assignments').update({is_active:false}).eq('teacher_id',user.id).neq('id',assignmentId);
-    await db.from('assignments').update({is_active:makeActive}).eq('id',assignmentId);
-    toast(makeActive?'Session opened — students can now join':'Session closed','success'); loadDashboard();
-  } catch(err){toast('Failed: '+err.message,'error');}
+    // Generate a simple join code — teacher can customise via assignment join_code field
+    const {data:asgn}=await db.from('assignments').select('join_code').eq('id',assignmentId).single();
+    const code=asgn?.join_code||Math.random().toString(36).slice(2,7).toUpperCase();
+    const {error}=await db.from('sessions').insert({
+      assignment_id:assignmentId, teacher_id:user.id,
+      status:'active', join_code:code,
+      last_active_at:new Date().toISOString(),
+    });
+    if(error) throw error;
+    toast(`Session opened — join code: ${code}`,'success',5000); loadDashboard();
+  } catch(err){toast('Failed to open session: '+err.message,'error');}
+}
+
+async function pauseSession(assignmentId,sessionId) {
+  try {
+    const {error}=await db.from('sessions').update({status:'paused',paused_at:new Date().toISOString()}).eq('id',sessionId);
+    if(error) throw error;
+    toast('Session paused','success'); loadDashboard();
+  } catch(err){toast('Failed to pause: '+err.message,'error');}
+}
+
+async function reopenSession(assignmentId,sessionId) {
+  try {
+    const newCode=Math.random().toString(36).slice(2,7).toUpperCase();
+    const {error}=await db.from('sessions').update({status:'active',join_code:newCode,paused_at:null}).eq('id',sessionId);
+    if(error) throw error;
+    toast(`Session reopened — new join code: ${newCode}`,'success',5000); loadDashboard();
+  } catch(err){toast('Failed to reopen: '+err.message,'error');}
+}
+
+async function endAssignment(assignmentId,sessionId,title) {
+  openModal(`<div class="modal-header"><h3>End assignment?</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body"><strong>${esc(title)}</strong><br><br>Once ended, all student submission data will be permanently deleted from PaperTrail's servers within 24 hours. Download the session report first.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="closeModal();doEndAssignment('${assignmentId}','${sessionId}')">End Assignment</button></div>`);
+}
+
+async function doEndAssignment(assignmentId,sessionId) {
+  try {
+    await db.from('submissions').delete().eq('session_id',sessionId);
+    await db.from('sessions').update({status:'ended',ended_at:new Date().toISOString()}).eq('id',sessionId);
+    if(STATE.selectedAssignmentId===assignmentId){STATE.selectedAssignmentId=null;STATE.allSubmissions=[];document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">Select an assignment on the left.</div>';document.getElementById('sub-count').textContent='Select an assignment to view its session report.';document.getElementById('export-btn').disabled=true;}
+    toast('Assignment ended — student data deleted','success'); loadDashboard();
+  } catch(err){toast('Failed to end assignment: '+err.message,'error');}
 }
 
 async function deleteAssignment(id,title) {
-  openModal(`<div class="modal-header"><h3>Delete assignment?</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">This will permanently delete <strong>${esc(title)}</strong> and all submission data.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="closeModal();doDeleteAssignment('${id}')">Delete Permanently</button></div>`);
+  openModal(`<div class="modal-header"><h3>Delete assignment?</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">This will permanently delete <strong>${esc(title)}</strong>. Only draft assignments (no active session) can be deleted.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="closeModal();doDeleteAssignment('${id}')">Delete Permanently</button></div>`);
 }
 async function doDeleteAssignment(id) {
   try {
-    await db.from('submissions').delete().eq('assignment_id',id);
     await db.from('assignments').delete().eq('id',id);
     if(STATE.selectedAssignmentId===id){STATE.selectedAssignmentId=null;STATE.allSubmissions=[];document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">Select an assignment on the left.</div>';document.getElementById('sub-count').textContent='Select an assignment to view its session report.';document.getElementById('export-btn').disabled=true;}
     toast('Assignment deleted','success'); loadDashboard();
@@ -1053,7 +1123,17 @@ function selectAssignment(id){STATE.selectedAssignmentId=id;STATE.expandedSubId=
 async function loadSubmissions(assignmentId) {
   document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:2rem">Loading…</div>';
   try {
-    const {data,error}=await db.from('submissions').select('*').eq('assignment_id',assignmentId).order('started_at',{ascending:true});
+    // Find most recent non-ended session for this assignment
+    const {data:sessions}=await db.from('sessions').select('id').eq('assignment_id',assignmentId).neq('status','ended').order('started_at',{ascending:false}).limit(1);
+    if(!sessions||!sessions.length){
+      STATE.allSubmissions=[];
+      document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">No active session for this assignment yet.</div>';
+      document.getElementById('sub-count').textContent='No session data.';
+      document.getElementById('export-btn').disabled=true;
+      return;
+    }
+    const sessionId=sessions[0].id;
+    const {data,error}=await db.from('submissions').select('*').eq('session_id',sessionId).order('started_at',{ascending:true});
     if(error) throw error;
     STATE.allSubmissions=data||[]; renderSubmissionsTable(data||[]);
     document.getElementById('export-btn').disabled=!data||!data.length;
