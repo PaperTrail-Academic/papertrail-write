@@ -1,8 +1,8 @@
 const { createClient } = supabase;
 // Publishable key — safe to be public, security enforced via RLS
 const SUPABASE_URL = 'https://iiviamoigtubkebreolx.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp';
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_ANON = 'sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp';
+const db = createClient(SUPABASE_URL, SUPABASE_ANON);
 const STATE = {
   teacher: null, teacherProfile: null,
   submissionId: null, sessionId: null, assignmentId: null, assignmentTitle: null,
@@ -80,16 +80,18 @@ function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
 // Shows appropriate toast/modal on block.
 async function checkPlanLimit(resource, teacherId) {
   try {
-    // Use the teacher's session JWT so the Edge Function can authenticate the request
     const { data: { session } } = await db.auth.getSession();
-    const jwt = session?.access_token || SUPABASE_KEY;
+    if (!session?.access_token) {
+      console.warn('checkPlanLimit: no active session, skipping limit check');
+      return false;
+    }
     const resp = await fetch(
       `${SUPABASE_URL}/functions/v1/check-plan-limits`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwt}`,
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ resource, teacher_id: teacherId }),
       }
