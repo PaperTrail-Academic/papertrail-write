@@ -47,10 +47,12 @@
           <label>Join Code</label>
           <input class="form-input" id="s-password" type="text" placeholder="e.g. EAGLE7"
             autocomplete="off" autocorrect="off" autocapitalize="characters"
-            style="font-family:'DM Mono',monospace;letter-spacing:0.1em;font-size:1rem;">
+            style="font-family:'DM Mono',monospace;letter-spacing:0.1em;font-size:1rem;"
+            onblur="prefetchRosterForCode()">
         </div>
-        <div class="form-group">
+        <div class="form-group" id="s-name-group">
           <label>Your Name</label>
+          <!-- Swapped to dropdown by prefetchRosterForCode() if roster exists -->
           <input class="form-input" id="s-name" type="text" placeholder="e.g. Jordan M." autocomplete="off">
         </div>
         <div class="form-group">
@@ -327,11 +329,17 @@
               <input class="form-input" id="a-title" type="text" placeholder="e.g. Rhetorical Analysis — MLK">
             </div>
             <div class="form-group">
+              <label>Class <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+              <select class="form-input form-select" id="a-class">
+                <option value="">— No class —</option>
+              </select>
+              <div class="form-hint">Linking a class enables the name dropdown and time accommodations for students.</div>
+            </div>
+            <div class="form-group">
               <label>Prompt Type</label>
               <div class="seg-control" id="a-prompt-type-ctrl">
-                <div class="seg-btn active" data-val="timed_essay" onclick="selectPromptType(this)">Timed Essay</div>
+                <div class="seg-btn active" data-val="essay" onclick="selectPromptType(this)">Essay</div>
                 <div class="seg-btn" data-val="document_based" onclick="selectPromptType(this)">Document-Based</div>
-                <div class="seg-btn" data-val="open_response" onclick="selectPromptType(this)">Open Response</div>
                 <div class="seg-btn" data-val="source_analysis" onclick="selectPromptType(this)">Source Analysis</div>
               </div>
             </div>
@@ -407,6 +415,15 @@
           <div id="assignment-list"><div class="empty-panel">No assignments yet.</div></div>
         </div>
       </div>
+      <div class="panel" style="margin-top:var(--space-md)">
+        <div class="panel-header" style="justify-content:space-between">
+          <h2>Classes</h2>
+          <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.7rem" onclick="showAddClassModal()">+ New Class</button>
+        </div>
+        <div class="panel-body" style="padding:0.75rem">
+          <div id="class-list"><div class="empty-panel">No classes yet.</div></div>
+        </div>
+      </div>
     </div>
     <div class="panel" style="overflow:visible">
       <div class="panel-header" style="justify-content:space-between">
@@ -422,6 +439,51 @@
       </div>
       <div style="padding:var(--space-md) var(--space-lg)">
         <div class="disclaimer">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROSTER MANAGEMENT (T5) -->
+<div class="screen" id="screen-roster">
+  <header class="dash-header">
+    <div class="dash-header-inner">
+      <div class="dash-brand">
+        <div class="dash-brand-icon">🖊️</div>
+        <div>
+          <div class="dash-brand-suite">PaperTrail</div>
+          <h1>Write</h1>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.6rem;align-items:center">
+        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="showScreen('dashboard');loadDashboard()">← Back to Dashboard</button>
+      </div>
+    </div>
+  </header>
+  <div style="max-width:900px;width:100%;margin:0 auto;padding:var(--space-lg);display:grid;grid-template-columns:260px 1fr;gap:var(--space-lg);align-items:start">
+    <!-- Left: class list -->
+    <div>
+      <div class="panel">
+        <div class="panel-header" style="justify-content:space-between">
+          <h2>Classes</h2>
+          <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.7rem" onclick="showAddClassModal()">+ New</button>
+        </div>
+        <div class="panel-body" style="padding:0.5rem">
+          <div id="roster-class-list"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Right: roster for selected class -->
+    <div class="panel">
+      <div class="panel-header" style="justify-content:space-between">
+        <h2 id="roster-class-name">Select a class</h2>
+        <div style="display:flex;gap:0.5rem" id="roster-actions" style="display:none">
+          <button class="btn btn-ghost" style="font-size:0.7rem;padding:0.3rem 0.7rem" onclick="showCsvImportModal()">↑ Import CSV</button>
+          <button class="btn btn-danger" style="font-size:0.7rem;padding:0.3rem 0.7rem" onclick="deleteSelectedClass()">Delete Class</button>
+        </div>
+      </div>
+      <div id="roster-body">
+        <div class="empty-panel" style="padding:3rem">Select a class on the left to manage its roster.</div>
       </div>
     </div>
   </div>
