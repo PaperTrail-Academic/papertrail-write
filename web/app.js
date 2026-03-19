@@ -95,6 +95,19 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); }
 // ── HELPERS ──
 function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
 
+// ── JOIN CODE GENERATOR ──
+const _JC_ADJ = ['AMBER','AZURE','BOLD','BRAVE','BRIGHT','CALM','CEDAR','CLEAR','CLOUD','CORAL','CRISP','CROWN','DAWN','DEEP','DELTA','EAGLE','EARLY','EMBER','FAIR','FALCON','FIELD','FIRM','FLEET','FROST','GOLD','GRAND','GROVE','HAWK','HIGH','IRON','JADE','KEEN','LANCE','LIGHT','LUNAR','MAPLE','MARSH','NOBLE','NORTH','OAK','OCEAN','ONYX','OPEN','ORBIT','PEAK','PINE','PLAIN','PRIME','PROUD','QUIET','RAPID','RAVEN','REEF','RIDGE','RIVER','ROCKY','ROYAL','SAGE','SHARP','SIERRA','SILVER','SLATE','SOLAR','SOUTH','SPARK','SPRING','STEEL','STERN','STILL','STORM','STRONG','SWIFT','TIDAL','TIMBER','TOPO','TRUE','ULTRA','URBAN','VALOR','VERDE','VITAL','VIVID','WARM','WEST','WILD','WINDY','WISE','YOUNG','ZEAL','ZENITH'];
+const _JC_NOUN = ['ARROW','ATLAS','AXLE','BADGE','BASIN','BEACON','BEAR','BLADE','BLOOM','BOLT','BOND','BOOK','BRIDGE','BROOK','BUCK','BUOY','CAPE','CHAIN','CLIFF','COLT','COMET','COVE','CRANE','CREEK','CREST','CROWN','CURVE','DART','DAWN','DEER','DELTA','DOME','DOVE','DRAFT','DRAKE','DRIFT','DRUM','DUNE','DUSK','FAWN','TERN','FERN','FINCH','FJORD','FLARE','FLEET','FLINT','FORGE','FORK','FORT','GLEN','GLYPH','GROVE','GUST','HELM','HERON','HILL','HIVE','HULL','HUNT','ISLE','KEEL','KELP','KNOT','LARK','LEDGE','LENS','LEVER','LINK','LOCH','LOFT','LOOP','LURE','LYNX','MARE','MARK','MARSH','MAST','MESA','MILL','MINK','MIST','MOLE','MONK','MOON','MOOR','MOOSE','MOTH','MOUNT'];
+function generateJoinCode() {
+  const adj = _JC_ADJ[Math.floor(Math.random() * _JC_ADJ.length)];
+  const noun = _JC_NOUN[Math.floor(Math.random() * _JC_NOUN.length)];
+  return adj + noun;
+}
+function regenJoinCode() {
+  const inp = document.getElementById('a-password');
+  if (inp) inp.value = generateJoinCode();
+}
+
 // Returns true if the action is blocked (limit reached), false if allowed.
 // Shows appropriate toast/modal on block.
 async function checkPlanLimit(resource, teacherId) {
@@ -743,6 +756,9 @@ async function loadDashboard() {
     renderAssignmentList(merged);
     renderClassList(classes||[], 'class-list', false);
     refreshClassSelector(classes||[]);
+    // Seed join code field if empty (first load or after cancel)
+    const jcField = document.getElementById('a-password');
+    if (jcField && !jcField.value) jcField.value = generateJoinCode();
     if(STATE.selectedAssignmentId) {
       loadSubmissions(STATE.selectedAssignmentId);
       const activeSession=sessionsByAssignment[STATE.selectedAssignmentId];
@@ -1276,7 +1292,7 @@ function cancelEditAssignment() {
   STATE.formSources = [];
   document.getElementById('a-title').value = '';
   document.getElementById('a-prompt').value = '';
-  document.getElementById('a-password').value = '';
+  document.getElementById('a-password').value = generateJoinCode();
   document.getElementById('a-time').value = '';
   document.getElementById('a-grade').value = '';
   document.getElementById('a-subject').value = '';
