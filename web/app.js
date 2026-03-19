@@ -21,6 +21,7 @@ const STATE = {
   realtimeChannel: null,
   _realtimePollInterval: null,
   pauseCountdownInterval: null,
+  frozenRemaining: null,
   isPreview: false,
   editingAssignmentId: null,
   selectedPromptType: 'essay',
@@ -498,7 +499,20 @@ function subscribeToSessionPause() {
   const ch = db.channel('session-status-' + STATE.sessionId)
     .on('postgres_changes', {event:'UPDATE', schema:'public', table:'sessions', filter:`id=eq.${STATE.sessionId}`}, (payload) => {
       const newStatus = payload.new?.status;
-      if (newStatus === 'paused') triggerPauseBanner();
+      if (newStatus === 'paused') {
+        // Freeze the timer at its current remaining value
+        if (STATE.timerInterval) {
+          clearInterval(STATE.timerInterval);
+          STATE.timerInterval = null;
+          STATE.frozenRemaining = STATE.timeLimitSeconds
+            ? Math.max(0, STATE.timeLimitSeconds - elapsedSeconds())
+            : null;
+        }
+        triggerPauseBanner();
+      } else if (newStatus === 'active') {
+        // Teacher unpaused — resume timer from frozen point and unlock UI
+        resumeFromPause();
+      }
     })
     .subscribe();
   STATE._sessionChannel = ch;
@@ -508,14 +522,22 @@ function triggerPauseBanner() {
   const banner = document.getElementById('pause-banner');
   const countdownEl = document.getElementById('pause-countdown');
   if (!banner || !countdownEl) return;
+
+  // Freeze timer display at current remaining time
+  if (STATE.frozenRemaining !== null) {
+    updateTimerDisplay(STATE.frozenRemaining);
+  }
+
   let t = 60;
   countdownEl.textContent = t;
   banner.classList.add('visible');
+  if (STATE.pauseCountdownInterval) clearInterval(STATE.pauseCountdownInterval);
   STATE.pauseCountdownInterval = setInterval(async () => {
     t--;
     countdownEl.textContent = t;
     if (t <= 0) {
       clearInterval(STATE.pauseCountdownInterval);
+      STATE.pauseCountdownInterval = null;
       const ta = document.getElementById('essay-textarea');
       if (ta) ta.disabled = true;
       document.getElementById('submit-btn').disabled = true;
@@ -525,10 +547,39 @@ function triggerPauseBanner() {
   }, 1000);
 }
 
+function resumeFromPause() {
+  // Hide the pause banner
+  const banner = document.getElementById('pause-banner');
+  if (banner) banner.classList.remove('visible');
+
+  // Stop the countdown if still running
+  if (STATE.pauseCountdownInterval) {
+    clearInterval(STATE.pauseCountdownInterval);
+    STATE.pauseCountdownInterval = null;
+  }
+
+  // Re-enable textarea and submit button
+  const ta = document.getElementById('essay-textarea');
+  if (ta) ta.disabled = false;
+  const submitBtn = document.getElementById('submit-btn');
+  if (submitBtn) submitBtn.disabled = false;
+
+  // Resume timer from frozen remaining, or fall back to normal calculation
+  if (STATE.timeLimitSeconds) {
+    if (STATE.frozenRemaining !== null) {
+      // Adjust startedAt forward by the duration of the pause so elapsedSeconds() stays accurate
+      const elapsed = STATE.timeLimitSeconds - STATE.frozenRemaining;
+      STATE.startedAt = new Date(Date.now() - elapsed * 1000).toISOString();
+      STATE.frozenRemaining = null;
+    }
+    startTimer();
+  }
+}
+
 
 function startTimer() {
   if(STATE.timerInterval) clearInterval(STATE.timerInterval);
-  updateTimerDisplay();
+  updateTimerDisplay(STATE.timeLimitSeconds - elapsedSeconds());
   STATE.timerInterval=setInterval(()=>{
     const r=STATE.timeLimitSeconds-elapsedSeconds();
     updateTimerDisplay(r);
