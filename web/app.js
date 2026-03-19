@@ -385,7 +385,9 @@ async function studentLogin() {
         effectiveMins = baseMins + entry.extended_minutes;
       }
     }
-    const effectiveSeconds = effectiveMins * 60;
+    // Also add any global extra time the teacher has already granted this session
+    const sessionExtraMins = session.extra_minutes || 0;
+    const effectiveSeconds = (effectiveMins + sessionExtraMins) * 60;
 
     // Check for existing submission in this session
     const {data:existing,error:sErr}=await db.from('submissions').select('*').eq('session_id',session.id).eq('student_display_name',name).maybeSingle();
@@ -394,7 +396,9 @@ async function studentLogin() {
     if(existing) {
       if(existing.is_submitted){loadSubmittedScreen(existing);showScreen('submitted');return;}
       STATE.submissionId=existing.id; STATE.assignmentId=assignment.id;
-      STATE.assignmentTitle=assignment.title; STATE.timeLimitSeconds=effectiveSeconds;
+      STATE.assignmentTitle=assignment.title;
+      // Fold in any per-student extra time already granted
+      STATE.timeLimitSeconds = effectiveSeconds + ((existing.extra_minutes||0) * 60);
       STATE.assignmentPromptText=assignment.prompt_text||'';
       STATE.assignmentPromptType=assignment.prompt_type||'essay';
       STATE.assignmentAllowSpellcheck=assignment.allow_spellcheck||false;
@@ -430,7 +434,10 @@ async function studentLogin() {
 function beginWriting() {
   enterWritingMode(STATE._resumeText||'');
   STATE._resumeText = null;
-  if (STATE.sessionId && !STATE.isPreview) subscribeToSessionPause();
+  if (STATE.sessionId && !STATE.isPreview) {
+    subscribeToSessionPause();
+    subscribeToSubmissionTime();
+  }
 }
 
 // ── WRITING MODE ──
@@ -533,9 +540,46 @@ function subscribeToSessionPause() {
         // Teacher unpaused — resume timer from frozen point and unlock UI
         resumeFromPause();
       }
+      // Handle global extra time added by teacher
+      const newExtra = payload.new?.extra_minutes;
+      const oldExtra = payload.old?.extra_minutes;
+      if (STATE.timeLimitSeconds && newExtra != null && newExtra !== oldExtra) {
+        const addedSecs = (newExtra - (oldExtra || 0)) * 60;
+        if (addedSecs > 0) applyExtraTime(addedSecs);
+      }
     })
     .subscribe();
   STATE._sessionChannel = ch;
+}
+
+function subscribeToSubmissionTime() {
+  if (!STATE.submissionId || !STATE.timeLimitSeconds) return;
+  const ch = db.channel('submission-time-' + STATE.submissionId)
+    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'submissions', filter:`id=eq.${STATE.submissionId}`}, (payload) => {
+      const newExtra = payload.new?.extra_minutes;
+      const oldExtra = payload.old?.extra_minutes;
+      if (newExtra != null && newExtra !== oldExtra) {
+        const addedSecs = (newExtra - (oldExtra || 0)) * 60;
+        if (addedSecs > 0) applyExtraTime(addedSecs);
+      }
+    })
+    .subscribe();
+  STATE._submissionTimeChannel = ch;
+}
+
+function applyExtraTime(addedSecs) {
+  // Extend timeLimitSeconds and shift startedAt backward so elapsedSeconds() stays accurate
+  STATE.timeLimitSeconds += addedSecs;
+  // If timer is frozen (session paused), just extend frozenRemaining
+  if (STATE.frozenRemaining !== null) {
+    STATE.frozenRemaining += addedSecs;
+    updateTimerDisplay(STATE.frozenRemaining);
+  } else {
+    // Running — restart timer with new limit (startedAt is already correct reference point)
+    if (STATE.timerInterval) { clearInterval(STATE.timerInterval); STATE.timerInterval = null; }
+    startTimer();
+  }
+  toast('Your teacher added extra time', 'success', 4000);
 }
 
 function triggerPauseBanner() {
@@ -2038,6 +2082,79 @@ function unsubscribeLiveSession() {
 }
 
 
+// ── ADD TIME ──
+
+function openAddTimeModal() {
+  const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
+  if (!sess) { toast('No active session', 'warning'); return; }
+  openModal(`
+    <div class="modal-header">
+      <h3>Add time — all students</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:var(--text-sm);color:var(--pt-muted);margin-bottom:var(--space-md)">Adds minutes to every student currently in the session. Students will see their timer extend immediately.</p>
+      <div class="form-group">
+        <label>Minutes to add</label>
+        <input class="form-input" id="add-time-minutes" type="number" min="1" max="120" step="1" value="5" style="width:120px">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAddTimeGlobal('${sess.id}')">Add Time for All</button>
+    </div>`);
+  setTimeout(() => document.getElementById('add-time-minutes')?.focus(), 50);
+}
+
+async function confirmAddTimeGlobal(sessionId) {
+  const mins = parseInt(document.getElementById('add-time-minutes')?.value || '0', 10);
+  if (!mins || mins < 1) { toast('Enter a valid number of minutes', 'warning'); return; }
+  closeModal();
+  try {
+    // Read current extra_minutes then add to it
+    const { data: sess, error: sErr } = await db.from('sessions').select('extra_minutes').eq('id', sessionId).single();
+    if (sErr) throw sErr;
+    const newExtra = (sess.extra_minutes || 0) + mins;
+    const { error } = await db.from('sessions').update({ extra_minutes: newExtra }).eq('id', sessionId);
+    if (error) throw error;
+    toast(`＋${mins} min added for all students`, 'success', 3000);
+  } catch(err) { toast('Failed to add time: ' + err.message, 'error'); }
+}
+
+function openAddTimePerStudent(subId, displayName) {
+  openModal(`
+    <div class="modal-header">
+      <h3>Add time — ${esc(displayName)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:var(--text-sm);color:var(--pt-muted);margin-bottom:var(--space-md)">Adds extra minutes for this student only. Stacks on top of any global time already added. Their timer extends immediately.</p>
+      <div class="form-group">
+        <label>Minutes to add</label>
+        <input class="form-input" id="add-time-per-minutes" type="number" min="1" max="120" step="1" value="5" style="width:120px">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAddTimePerStudent('${subId}')">Add Time</button>
+    </div>`);
+  setTimeout(() => document.getElementById('add-time-per-minutes')?.focus(), 50);
+}
+
+async function confirmAddTimePerStudent(subId) {
+  const mins = parseInt(document.getElementById('add-time-per-minutes')?.value || '0', 10);
+  if (!mins || mins < 1) { toast('Enter a valid number of minutes', 'warning'); return; }
+  closeModal();
+  try {
+    const { data: sub, error: sErr } = await db.from('submissions').select('extra_minutes').eq('id', subId).single();
+    if (sErr) throw sErr;
+    const newExtra = (sub.extra_minutes || 0) + mins;
+    const { error } = await db.from('submissions').update({ extra_minutes: newExtra }).eq('id', subId);
+    if (error) throw error;
+    toast(`＋${mins} min added for student`, 'success', 3000);
+  } catch(err) { toast('Failed to add time: ' + err.message, 'error'); }
+}
+
 async function reopenSession(assignmentId,sessionId) {
   try {
     const {error}=await db.from('sessions').update({status:'active',paused_at:null}).eq('id',sessionId);
@@ -2242,9 +2359,30 @@ function renderSubmissionsTable(submissions) {
     const resubmitCell = s.is_submitted
       ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid #2a7a3b;background:#e8f5e9;color:#2a7a3b;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="unsubmitStudent('${s.id}','${esc(s.student_display_name)}')">↩ Return</button></td>`
       : `<td><span style="font-size:var(--text-xs);color:var(--pt-border)">—</span></td>`;
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${resubmitCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    // Per-student add time — only show for in-progress students when session is live
+    const sess2 = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
+    const liveSession = sess2 && (sess2.status === 'active' || sess2.status === 'paused');
+    const perStudentTimeCell = (liveSession && !s.is_submitted)
+      ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid var(--pt-write);background:var(--pt-write-pale);color:var(--pt-write);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="openAddTimePerStudent('${s.id}','${esc(s.student_display_name)}')">＋ Time</button></td>`
+      : `<td></td>`;
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${resubmitCell}${perStudentTimeCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
-  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events</th><th>Time Away</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  // Show Add Time button in toolbar only when session is active or paused
+  const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
+  const sessIsLive = sess && (sess.status === 'active' || sess.status === 'paused');
+  const addTimeBtn = sessIsLive
+    ? `<button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem" onclick="openAddTimeModal()">＋ Add Time</button>`
+    : '';
+  const toolbar = document.getElementById('sub-toolbar');
+  // Remove old add-time btn if present, then re-insert
+  document.getElementById('add-time-global-btn-wrap')?.remove();
+  if (addTimeBtn && toolbar) {
+    const wrap = document.createElement('span');
+    wrap.id = 'add-time-global-btn-wrap';
+    wrap.innerHTML = addTimeBtn;
+    toolbar.insertBefore(wrap, toolbar.querySelector('#export-btn'));
+  }
+  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events</th><th>Time Away</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function toggleSubmissionDetail(subId){STATE.expandedSubId=(STATE.expandedSubId===subId)?null:subId;renderSubmissionsTable(STATE.allSubmissions);}
@@ -2254,7 +2392,7 @@ function renderDetailRow(sub) {
   const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
   const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
   const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
-  return `<tr class="detail-row"><td class="detail-cell" colspan="8"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
+  return `<tr class="detail-row"><td class="detail-cell" colspan="9"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
 // ── PRINT STUDENT REPORT ──
