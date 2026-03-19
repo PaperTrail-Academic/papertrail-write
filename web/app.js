@@ -31,14 +31,57 @@ const STATE = {
   studentSources: [],      // Loaded at join time for student rendering
 };
 
-// ── JOIN CODE PROJECTOR ──
+// ── JOIN CODE PROJECTOR — opens in new window ──
 function projectJoinCode(code, title) {
-  document.getElementById('projector-code').textContent = code;
-  document.getElementById('projector-title').textContent = title;
-  document.getElementById('projector-overlay').classList.add('visible');
-}
-function closeProjector() {
-  document.getElementById('projector-overlay').classList.remove('visible');
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join Code — ${code}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1a2235; color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 100vh; padding: 2rem;
+    overflow: hidden;
+  }
+  .title {
+    font-size: clamp(0.9rem, 2.5vw, 1.4rem);
+    font-weight: 500; color: rgba(255,255,255,0.45);
+    margin-bottom: 1.5rem; letter-spacing: 0.04em;
+    text-align: center;
+  }
+  .code {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(3rem, 16vw, 14rem);
+    font-weight: 500; color: #fff;
+    letter-spacing: 0.08em; line-height: 1;
+    text-align: center; white-space: nowrap;
+  }
+  .hint {
+    margin-top: 2.5rem;
+    font-size: clamp(0.75rem, 1.6vw, 1rem);
+    color: rgba(255,255,255,0.28);
+    letter-spacing: 0.03em; text-align: center;
+  }
+  .hint strong { color: rgba(255,255,255,0.45); }
+</style>
+</head>
+<body>
+  <div class="title">${title.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+  <div class="code">${code}</div>
+  <div class="hint">Students go to <strong>papertrail-write.vercel.app</strong> and enter this code</div>
+</body>
+</html>`;
+  const w = window.open('', '_blank', 'width=1024,height=768');
+  if (!w) { toast('Pop-up blocked — please allow pop-ups for this site', 'warning', 5000); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── BOOT ──
@@ -1196,7 +1239,6 @@ function renderAssignmentList(assignments) {
     const sessionActions = a.archived ? '' : isActive
       ?`<div class="assignment-actions-row assignment-actions-primary">
           <button class="btn btn-ghost" onclick="pauseSession('${a.id}','${sessionId}')">⏸ Pause</button>
-          <button class="btn btn-ghost" onclick="projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code fullscreen">📽 Project</button>
           <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
         </div>`
       :isPaused
@@ -1231,6 +1273,7 @@ function renderAssignmentList(assignments) {
       <div style="margin-top:0.3rem;display:flex;align-items:center;gap:0.5rem">
         ${statusPill}
         ${(isActive||isPaused)?`<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span>`:''}
+        ${isActive?`<button onclick="event.stopPropagation();projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code in new window" style="background:none;border:none;padding:0.1rem 0.2rem;cursor:pointer;color:var(--pt-muted);font-size:0.9rem;line-height:1;border-radius:3px" onmouseover="this.style.color='var(--pt-write)'" onmouseout="this.style.color='var(--pt-muted)'">⛶</button>`:''}
       </div>
       <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
     </div>`;
