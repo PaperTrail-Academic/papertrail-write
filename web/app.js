@@ -58,10 +58,10 @@ function projectJoinCode(code, title) {
   }
   .code {
     font-family: 'DM Mono', monospace;
-    font-size: clamp(3rem, 16vw, 14rem);
     font-weight: 500; color: #fff;
-    letter-spacing: 0.08em; line-height: 1;
+    letter-spacing: 0.06em; line-height: 1;
     text-align: center; white-space: nowrap;
+    width: 100%;
   }
   .hint {
     margin-top: 2.5rem;
@@ -74,8 +74,24 @@ function projectJoinCode(code, title) {
 </head>
 <body>
   <div class="title">${title.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-  <div class="code">${code}</div>
+  <div class="code" id="code">${code}</div>
   <div class="hint">Students go to <strong>papertrail-write.vercel.app</strong> and enter this code</div>
+  <script>
+    function fitCode() {
+      const el = document.getElementById('code');
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let size = Math.floor(vw * 0.85 / el.textContent.length * 1.1);
+      size = Math.min(size, Math.floor(vh * 0.55));
+      el.style.fontSize = size + 'px';
+      while (el.scrollWidth > vw * 0.92 && size > 10) {
+        size--;
+        el.style.fontSize = size + 'px';
+      }
+    }
+    window.addEventListener('load', fitCode);
+    window.addEventListener('resize', fitCode);
+  <\/script>
 </body>
 </html>`;
   const w = window.open('', '_blank', 'width=1024,height=768');
