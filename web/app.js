@@ -1837,7 +1837,7 @@ async function openSession(assignmentId) {
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="closeModal();doOpenSession('${assignmentId}')">Open Session →</button>
-    </div>\`);
+    </div>`);
 }
 
 async function doOpenSession(assignmentId) {
