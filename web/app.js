@@ -1252,6 +1252,21 @@ function renderAssignmentList(assignments) {
     const ptLabel=ptLabels[a.prompt_type]||'Essay';
     const className = a.class_id ? ((STATE._classes||[]).find(c=>c.id===a.class_id)?.name||'') : '';
     const classPart = className ? ` · ${esc(className)}` : '';
+
+    // Purge warning — show amber notice when session data is approaching auto-purge
+    let purgeWarning = '';
+    if ((isActive || isPaused) && a._session?.last_active_at) {
+      const lastActive = new Date(a._session.last_active_at).getTime();
+      const cutoffDays = a.time_limit_minutes ? 7 : 30;
+      const cutoffMs = cutoffDays * 86400 * 1000;
+      const ageMs = Date.now() - lastActive;
+      const daysLeft = Math.ceil((cutoffMs - ageMs) / 86400000);
+      if (daysLeft <= 3 && daysLeft > 0) {
+        purgeWarning = `<div style="margin-top:0.35rem;font-size:var(--text-xs);color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:var(--radius-sm);padding:0.2rem 0.5rem;display:inline-block">⚠ Session data expires in ${daysLeft} day${daysLeft!==1?'s':''} — download report or end session</div>`;
+      } else if (daysLeft <= 0) {
+        purgeWarning = `<div style="margin-top:0.35rem;font-size:var(--text-xs);color:#991b1b;background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:0.2rem 0.5rem;display:inline-block">⚠ Session data will be purged tonight — download report now</div>`;
+      }
+    }
     const sessionActions = a.archived ? '' : isActive
       ?`<div class="assignment-actions-row assignment-actions-primary">
           <button class="btn btn-ghost" onclick="pauseSession('${a.id}','${sessionId}')">⏸ Pause</button>
@@ -1291,6 +1306,7 @@ function renderAssignmentList(assignments) {
         ${(isActive||isPaused)?`<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span>`:''}
         ${isActive?`<button onclick="event.stopPropagation();projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code in new window" style="background:none;border:none;padding:0.1rem 0.2rem;cursor:pointer;color:var(--pt-muted);font-size:0.9rem;line-height:1;border-radius:3px" onmouseover="this.style.color='var(--pt-write)'" onmouseout="this.style.color='var(--pt-muted)'">⛶</button>`:''}
       </div>
+      ${purgeWarning}
       <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
     </div>`;
   };
