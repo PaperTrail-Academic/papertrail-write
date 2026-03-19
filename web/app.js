@@ -78,15 +78,16 @@ function projectJoinCode(code, title) {
   <script>
     function fitCode() {
       const el = document.getElementById('code');
+      const chars = el.textContent.length || 1;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      let size = Math.floor(vw * 0.85 / el.textContent.length * 1.1);
+      // Monospace chars are ~0.6x the font size wide, plus letter-spacing of 0.06em
+      // So each char takes ~0.66 * fontSize px. Solve for fontSize:
+      // chars * 0.66 * fontSize = vw * 0.88 → fontSize = vw * 0.88 / (chars * 0.66)
+      let size = Math.floor(vw * 0.88 / (chars * 0.66));
+      // Also cap at 55% of viewport height so it doesn't overflow vertically
       size = Math.min(size, Math.floor(vh * 0.55));
       el.style.fontSize = size + 'px';
-      while (el.scrollWidth > vw * 0.92 && size > 10) {
-        size--;
-        el.style.fontSize = size + 'px';
-      }
     }
     fitCode();
     window.addEventListener('resize', fitCode);
