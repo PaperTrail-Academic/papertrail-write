@@ -39,12 +39,11 @@ function projectJoinCode(code, title) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Join Code — ${code}</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: #1a2235; color: #fff;
-    font-family: 'DM Sans', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     min-height: 100vh; padding: 2rem;
@@ -57,8 +56,8 @@ function projectJoinCode(code, title) {
     text-align: center;
   }
   .code {
-    font-family: 'DM Mono', monospace;
-    font-weight: 500; color: #fff;
+    font-family: 'SF Mono', 'Fira Mono', 'Consolas', 'Menlo', monospace;
+    font-weight: 600; color: #fff;
     letter-spacing: 0.06em; line-height: 1;
     text-align: center; white-space: nowrap;
     width: 100%;
@@ -89,7 +88,7 @@ function projectJoinCode(code, title) {
         el.style.fontSize = size + 'px';
       }
     }
-    window.addEventListener('load', fitCode);
+    fitCode();
     window.addEventListener('resize', fitCode);
   <\/script>
 </body>
