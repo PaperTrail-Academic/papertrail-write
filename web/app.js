@@ -2118,6 +2118,7 @@ async function confirmUnsubmit(subId) {
 }
 
 
+function labelForEvent(type) {
   const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste'};
   return l[type]||type.replace(/_/g,' ');
 }
