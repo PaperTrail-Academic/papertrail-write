@@ -1549,8 +1549,8 @@ function renderSourcePanel() {
     initResizeHandle();
 
   } else {
-    // Source Analysis: tabbed layout above textarea
-    defaultMain.style.display = 'flex';
+    // Source Analysis: split layout (sources left with tabs, essay right)
+    defaultMain.style.display = 'none';
     const tabs = sources.map((src, i) =>
       `<button class="source-tab-btn ${i===0?'active':''}" onclick="switchSourceTab(${i})">${esc(src.label||`Source ${i+1}`)}</button>`
     ).join('');
@@ -1559,10 +1559,20 @@ function renderSourcePanel() {
     ).join('');
 
     container.innerHTML = `
-      <div style="max-width:1000px;width:100%;margin:0 auto;padding:0 var(--space-lg)">
-        <div class="source-tabs-wrap">
-          <div class="source-tabs-bar">${tabs}</div>
-          <div id="source-tabs-content">${panels}</div>
+      <div class="writing-split" id="writing-split">
+        <div class="source-pane" id="source-pane">
+          <div class="source-pane-header source-pane-header--tabs">
+            <div class="source-tabs-bar" id="source-tabs-bar">${tabs}</div>
+            <span class="source-pane-readonly-badge">Read only</span>
+          </div>
+          <div class="source-pane-body" id="source-pane-body">
+            <div id="source-tabs-content">${panels}</div>
+          </div>
+        </div>
+        <div class="split-resize-handle" id="split-resize-handle" title="Drag to resize"></div>
+        <div class="essay-pane">
+          <textarea id="essay-textarea" placeholder="Begin writing here…"
+            spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
         </div>
       </div>`;
 
@@ -1572,10 +1582,11 @@ function renderSourcePanel() {
       if (panel) renderSourceContent(src, panel);
     });
     disableSourcePaneRightClick(document.getElementById('source-tabs-content'));
+    initResizeHandle();
   }
 
-  // Move the textarea into the essay pane if split layout
-  if (promptType === 'document_based') {
+  // Apply spellcheck settings to essay textarea for both split layouts
+  if (['document_based', 'source_analysis'].includes(promptType)) {
     const essayTA = document.getElementById('essay-textarea');
     if (essayTA) {
       const sc = STATE.assignmentAllowSpellcheck;
