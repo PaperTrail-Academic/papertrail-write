@@ -677,7 +677,7 @@ async function loadDashboard() {
       {data:sessions,error:sErr},
       {data:classes,error:cErr},
     ] = await Promise.all([
-      db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}),
+      db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}).throwOnError(),
       db.from('sessions').select('*').eq('teacher_id',user.id).neq('status','ended'),
       db.from('classes').select('*').eq('teacher_id',user.id).order('name',{ascending:true}),
     ]);
@@ -1023,7 +1023,7 @@ async function doImportCsv() {
 function renderAssignmentList(assignments) {
   const el=document.getElementById('assignment-list');
   if(!assignments.length){el.innerHTML='<div class="empty-panel">No assignments yet. Create one above.</div>';return;}
-  const ptLabels={essay:'Open Writing', document_based:'Document-Based', source_analysis:'Source-Based'};
+  const ptLabels={essay:'Essay', document_based:'Document-Based', source_analysis:'Source Analysis'};
 
   const active = assignments.filter(a => !a.archived);
   const archived = assignments.filter(a => a.archived);
@@ -1070,10 +1070,7 @@ function renderAssignmentList(assignments) {
     return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
       <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
-      <div style="margin-top:0.3rem;display:flex;align-items:center;gap:0.5rem">
-        ${statusPill}
-        ${(isActive||isPaused)?`<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span>`:''}
-      </div>
+      <div style="margin-top:0.35rem">${statusPill}</div>
       <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
     </div>`;
   };
@@ -1297,11 +1294,11 @@ async function createAssignment() {
     let assignmentId = STATE.editingAssignmentId;
     if(assignmentId) {
       const {error}=await db.from('assignments').update(payload).eq('id',assignmentId);
-      if(error) throw error;
+      if(error){ console.error('UPDATE error full:', JSON.stringify(error)); throw error; }
       toast(`"${title}" updated`,'success');
     } else {
       const {data:newA,error}=await db.from('assignments').insert(payload).select().single();
-      if(error) throw error;
+      if(error){ console.error('INSERT error full:', JSON.stringify(error)); throw error; }
       assignmentId = newA.id;
       toast(`"${title}" created`,'success');
     }
@@ -1309,7 +1306,7 @@ async function createAssignment() {
     await saveSourcesForAssignment(assignmentId, user.id);
     cancelEditAssignment();
     loadDashboard();
-  } catch(err){toast('Save failed: '+err.message,'error');}
+  } catch(err){console.error('Save failed full:', JSON.stringify(err)); toast('Save failed: '+err.message+' | code: '+(err.code||'?')+' | hint: '+(err.hint||err.details||'none'),'error',10000);}
   finally{btn.disabled=false;}
 }
 
@@ -1758,24 +1755,15 @@ async function renderDocxSource(url, container) {
 async function openSession(assignmentId) {
   const {data:{user}}=await db.auth.getUser(); if(!user) return;
   try {
+    // Generate a simple join code — teacher can customise via assignment join_code field
     const {data:asgn}=await db.from('assignments').select('join_code').eq('id',assignmentId).single();
-    let code=asgn?.join_code||Math.random().toString(36).slice(2,7).toUpperCase();
-    // Attempt insert; if join code conflicts (409), append random suffix and retry once
-    let result=await db.from('sessions').insert({
+    const code=asgn?.join_code||Math.random().toString(36).slice(2,7).toUpperCase();
+    const {error}=await db.from('sessions').insert({
       assignment_id:assignmentId, teacher_id:user.id,
       status:'active', join_code:code,
       last_active_at:new Date().toISOString(),
     });
-    if(result.error && result.error.code==='23505') {
-      // Unique violation — join code already in use, append 2-char suffix
-      code = code + Math.random().toString(36).slice(2,4).toUpperCase();
-      result=await db.from('sessions').insert({
-        assignment_id:assignmentId, teacher_id:user.id,
-        status:'active', join_code:code,
-        last_active_at:new Date().toISOString(),
-      });
-    }
-    if(result.error) throw result.error;
+    if(error) throw error;
     toast(`Session opened — join code: ${code}`,'success',5000); loadDashboard();
   } catch(err){toast('Failed to open session: '+err.message,'error');}
 }
