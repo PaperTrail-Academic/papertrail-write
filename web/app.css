@@ -292,7 +292,7 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .assignment-item-meta { font-size: var(--text-xs); color: var(--pt-muted); }
 .assignment-item-actions { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
 .assignment-actions-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.assignment-actions-primary .btn { flex: 1; font-size: var(--text-sm); padding: 0.45rem 0.75rem; justify-content: center; }
+.assignment-actions-primary .btn { font-size: var(--text-sm); padding: 0.45rem 0.75rem; justify-content: center; }
 .assignment-actions-secondary .btn { font-size: 0.72rem; padding: 0.3rem 0.65rem; }
 .pill { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.18rem 0.5rem; border-radius: 20px; border: 1px solid; }
 .pill-active { background: #eaf5ef; color: var(--success); border-color: #a9d9be; }
