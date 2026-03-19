@@ -368,6 +368,9 @@
               <div class="form-hint">Students see sources in a read-only panel alongside their writing area.</div>
             </div>
             <div class="form-row join-time-row">
+              <div class="form-group">
+                <label>Join Code</label>
+                <div class="join-code-field">
                   <input class="form-input" id="a-password" type="text" style="font-family:'DM Mono',monospace;letter-spacing:0.06em">
                   <button class="btn btn-ghost join-code-regen" type="button" onclick="regenJoinCode()" title="Generate a new code">🔄</button>
                 </div>
@@ -375,7 +378,7 @@
               </div>
               <div class="form-group">
                 <label>Time (min) <span style="font-weight:400;text-transform:none;letter-spacing:0" id="time-limit-opt-label">(optional)</span></label>
-                <input class="form-input" id="a-time" type="number" min="5" max="300" step="5" >
+                <input class="form-input" id="a-time" type="number" min="5" max="300" step="5">
                 <div class="form-hint" id="a-time-hint">Leave blank for no time limit.</div>
               </div>
             </div>
