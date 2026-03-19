@@ -677,7 +677,7 @@ async function loadDashboard() {
       {data:sessions,error:sErr},
       {data:classes,error:cErr},
     ] = await Promise.all([
-      db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}).throwOnError(),
+      db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}),
       db.from('sessions').select('*').eq('teacher_id',user.id).neq('status','ended'),
       db.from('classes').select('*').eq('teacher_id',user.id).order('name',{ascending:true}),
     ]);
@@ -1284,21 +1284,22 @@ async function createAssignment() {
   }
   const payload={
     teacher_id:user.id, title, join_code:joinCode,
-    class_id: classId||null,
     prompt_type:promptType, prompt_text:promptText||null,
     time_limit_minutes:minutes,
     allow_spellcheck:allowSpellcheck,
     grade_level:gradeLevel, subject,
   };
+  // Only include class_id if a class is actually selected — avoids 400 if column is absent
+  if (classId) payload.class_id = classId;
   try {
     let assignmentId = STATE.editingAssignmentId;
     if(assignmentId) {
       const {error}=await db.from('assignments').update(payload).eq('id',assignmentId);
-      if(error){ console.error('UPDATE error full:', JSON.stringify(error)); throw error; }
+      if(error) throw error;
       toast(`"${title}" updated`,'success');
     } else {
       const {data:newA,error}=await db.from('assignments').insert(payload).select().single();
-      if(error){ console.error('INSERT error full:', JSON.stringify(error)); throw error; }
+      if(error) throw error;
       assignmentId = newA.id;
       toast(`"${title}" created`,'success');
     }
@@ -1306,7 +1307,7 @@ async function createAssignment() {
     await saveSourcesForAssignment(assignmentId, user.id);
     cancelEditAssignment();
     loadDashboard();
-  } catch(err){console.error('Save failed full:', JSON.stringify(err)); toast('Save failed: '+err.message+' | code: '+(err.code||'?')+' | hint: '+(err.hint||err.details||'none'),'error',10000);}
+  } catch(err){toast('Save failed: '+err.message,'error');}
   finally{btn.disabled=false;}
 }
 
