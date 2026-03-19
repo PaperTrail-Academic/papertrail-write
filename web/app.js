@@ -1282,15 +1282,16 @@ async function createAssignment() {
     const limited = await checkPlanLimit('assignment', user.id);
     if (limited) { btn.disabled=false; return; }
   }
+  // Only include columns that have values — prevents 400 if optional columns don't exist in live DB
   const payload={
     teacher_id:user.id, title, join_code:joinCode,
     prompt_type:promptType, prompt_text:promptText||null,
     time_limit_minutes:minutes,
-    allow_spellcheck:allowSpellcheck,
-    grade_level:gradeLevel, subject,
   };
-  // Only include class_id if a class is actually selected — avoids 400 if column is absent
   if (classId) payload.class_id = classId;
+  if (gradeLevel) payload.grade_level = gradeLevel;
+  if (subject) payload.subject = subject;
+  if (allowSpellcheck) payload.allow_spellcheck = allowSpellcheck;
   try {
     let assignmentId = STATE.editingAssignmentId;
     if(assignmentId) {
