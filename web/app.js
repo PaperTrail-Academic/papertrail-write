@@ -2128,7 +2128,7 @@ function renderSubmissionsTable(submissions) {
     const largePaste=pastes.some(e=>e.char_count>200),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
     const notable=[pastes.length>0?`<span style="color:var(--warning)">paste ×${pastes.length}</span>`:'',largePaste?`<span style="color:var(--warning)">large paste</span>`:'',blurs.length>0?`<span style="color:var(--pt-muted)">left window ×${blurs.length}</span>`:'',wordDrops.length>0?`<span style="color:var(--pt-muted)">word drop</span>`:''].filter(Boolean).join(' &nbsp;');
     const resubmitCell = s.is_submitted
-      ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid #2a7a3b;background:#e8f5e9;color:#2a7a3b;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="unsubmitStudent('${s.id}','${esc(s.student_display_name)}')">↩ Resubmit</button></td>`
+      ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid #2a7a3b;background:#e8f5e9;color:#2a7a3b;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="unsubmitStudent('${s.id}','${esc(s.student_display_name)}')">↩ Return</button></td>`
       : `<td><span style="font-size:var(--text-xs);color:var(--pt-border)">—</span></td>`;
     return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${resubmitCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
@@ -2148,7 +2148,7 @@ function renderDetailRow(sub) {
 async function unsubmitStudent(subId, displayName) {
   openModal(`
     <div class="modal-header">
-      <h3>Allow Resubmit?</h3>
+      <h3>Return student to session?</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
@@ -2157,7 +2157,7 @@ async function unsubmitStudent(subId, displayName) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="closeModal();confirmUnsubmit('${subId}')">Allow Resubmit</button>
+      <button class="btn btn-primary" onclick="closeModal();confirmUnsubmit('${subId}')">Return to Session</button>
     </div>`);
 }
 
@@ -2167,7 +2167,7 @@ async function confirmUnsubmit(subId) {
       .update({ is_submitted: false, submitted_at: null })
       .eq('id', subId);
     if (error) throw error;
-    toast('Student can now re-enter and continue writing', 'success', 4000);
+    toast('Student returned to session — they can continue writing', 'success', 4000);
     // Refresh the table so the row reflects the new state
     const { data: subs } = await db.from('submissions').select('*').eq('session_id', STATE.selectedSessionId);
     if (subs) { STATE.allSubmissions = subs; renderSubmissionsTable(subs); }
