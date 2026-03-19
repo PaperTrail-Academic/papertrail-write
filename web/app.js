@@ -2405,6 +2405,7 @@ async function printStudentReport(subId) {
 }
 
 
+async function unsubmitStudent(subId, displayName) {
   openModal(`
     <div class="modal-header">
       <h3>Return student to session?</h3>
