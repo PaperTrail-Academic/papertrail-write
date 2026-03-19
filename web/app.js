@@ -422,7 +422,7 @@ function enterWritingMode(savedText) {
   const promptText = STATE.assignmentPromptText;
   const promptPanel = document.getElementById('prompt-panel');
   if (promptText && promptText.trim()) {
-    const typeLabels = {essay:'Assignment Prompt', document_based:'Document-Based Prompt', source_analysis:'Source-Based Prompt'};
+    const typeLabels = {essay:'Assignment Prompt', document_based:'Document-Based Prompt', source_analysis:'Source Analysis Prompt'};
     document.getElementById('prompt-type-label').textContent = typeLabels[STATE.assignmentPromptType] || 'Assignment Prompt';
     document.getElementById('prompt-body').textContent = promptText;
     promptPanel.style.display = 'block';
@@ -1070,7 +1070,10 @@ function renderAssignmentList(assignments) {
     return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
       <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
-      <div style="margin-top:0.35rem">${statusPill}</div>
+      <div style="margin-top:0.3rem;display:flex;align-items:center;gap:0.5rem">
+        ${statusPill}
+        ${(isActive||isPaused)?`<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span>`:''}
+      </div>
       <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
     </div>`;
   };
@@ -1209,16 +1212,9 @@ function selectPromptType(btn) {
 function updateAddSourceBtn() {
   const btn = document.getElementById('a-add-source-btn');
   if (!btn) return;
-  if (STATE.selectedPromptType === 'document_based') {
-    // Document-Based: hide button entirely once 1 source exists
-    btn.style.display = STATE.formSources.length >= 1 ? 'none' : '';
-    btn.disabled = false;
-    btn.title = '';
-  } else {
-    btn.style.display = '';
-    btn.disabled = STATE.formSources.length >= 8;
-    btn.title = STATE.formSources.length >= 8 ? 'Maximum 8 sources reached' : '';
-  }
+  const max = STATE.selectedPromptType === 'document_based' ? 1 : 8;
+  btn.disabled = STATE.formSources.length >= max;
+  btn.title = STATE.formSources.length >= max ? `${max === 1 ? 'Document-Based uses only 1 source' : 'Maximum 8 sources reached'}` : '';
 }
 
 function cancelEditAssignment() {
@@ -1382,9 +1378,8 @@ function renderFormSources() {
 function addSource() {
   if (STATE.formSources.length >= 8) return;
   const n = STATE.formSources.length + 1;
-  const defaultLabel = STATE.selectedPromptType === 'document_based' ? 'Title of Document' : `Source ${n}`;
   STATE.formSources.push({
-    id: null, label: defaultLabel, type: 'text',
+    id: null, label: `Source ${n}`, type: 'text',
     text_content: '', storage_path: null, storage_url: null,
     _file: null, _uploading: false,
   });
@@ -1763,15 +1758,24 @@ async function renderDocxSource(url, container) {
 async function openSession(assignmentId) {
   const {data:{user}}=await db.auth.getUser(); if(!user) return;
   try {
-    // Generate a simple join code — teacher can customise via assignment join_code field
     const {data:asgn}=await db.from('assignments').select('join_code').eq('id',assignmentId).single();
-    const code=asgn?.join_code||Math.random().toString(36).slice(2,7).toUpperCase();
-    const {error}=await db.from('sessions').insert({
+    let code=asgn?.join_code||Math.random().toString(36).slice(2,7).toUpperCase();
+    // Attempt insert; if join code conflicts (409), append random suffix and retry once
+    let result=await db.from('sessions').insert({
       assignment_id:assignmentId, teacher_id:user.id,
       status:'active', join_code:code,
       last_active_at:new Date().toISOString(),
     });
-    if(error) throw error;
+    if(result.error && result.error.code==='23505') {
+      // Unique violation — join code already in use, append 2-char suffix
+      code = code + Math.random().toString(36).slice(2,4).toUpperCase();
+      result=await db.from('sessions').insert({
+        assignment_id:assignmentId, teacher_id:user.id,
+        status:'active', join_code:code,
+        last_active_at:new Date().toISOString(),
+      });
+    }
+    if(result.error) throw result.error;
     toast(`Session opened — join code: ${code}`,'success',5000); loadDashboard();
   } catch(err){toast('Failed to open session: '+err.message,'error');}
 }
