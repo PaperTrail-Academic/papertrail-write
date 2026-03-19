@@ -1783,7 +1783,9 @@ async function openSession(assignmentId) {
       });
     }
     if(result.error) throw result.error;
-    toast(`Session opened — join code: ${code}`,'success',5000); loadDashboard();
+    toast(`Session opened — join code: ${code}`,'success',5000);
+    STATE.selectedAssignmentId = assignmentId;
+    await loadDashboard();
   } catch(err){toast('Failed to open session: '+err.message,'error');}
 }
 
