@@ -267,7 +267,7 @@ async function studentLoginStep() {
     statusEl.className = 'status-msg'; statusEl.textContent = '';
     try {
       // Validate code
-      const {data:sessions, error:sErr} = await db.from('sessions').select('assignment_id').eq('join_code', joinCode).eq('status', 'active');
+      const {data:sessions, error:sErr} = await db.from('sessions').select('id, assignment_id').eq('join_code', joinCode).eq('status', 'active');
       if (sErr) throw sErr;
       if (!sessions?.length) {
         statusEl.className = 'status-msg error';
