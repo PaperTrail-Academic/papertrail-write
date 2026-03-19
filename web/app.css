@@ -45,7 +45,46 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .form-input, .form-select { width: 100%; padding: 0.6rem 0.9rem; border: 1.5px solid var(--pt-border); border-radius: var(--radius-md); font-family: 'DM Sans', sans-serif; font-size: var(--text-sm); color: var(--pt-ink); background: var(--pt-surface); transition: border-color var(--t), box-shadow var(--t); }
 .form-input:focus, .form-select:focus { outline: none; border-color: var(--pt-write); box-shadow: 0 0 0 3px rgba(123,94,167,0.12); }
 .form-hint { font-size: var(--text-xs); color: var(--pt-muted); margin-top: 0.3rem; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; align-items: start; }
+
+/* Join code field with regen button */
+.join-code-field { display: flex; gap: 0.4rem; align-items: center; }
+.join-code-field .form-input { flex: 1; min-width: 0; }
+.join-code-regen { padding: 0.45rem 0.55rem; font-size: 0.85rem; border-radius: var(--radius-sm); flex-shrink: 0; }
+
+/* Projector overlay */
+#projector-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 9000;
+  background: var(--pt-ink);
+  flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+#projector-overlay.visible { display: flex; }
+.projector-close {
+  position: absolute; top: 2rem; right: 2rem;
+  background: rgba(255,255,255,0.08); border: 1.5px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.6); font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem; font-weight: 600; padding: 0.5rem 1.1rem;
+  border-radius: var(--radius-md); cursor: pointer;
+}
+.projector-close:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.projector-title {
+  font-family: 'DM Sans', sans-serif; font-size: clamp(1rem, 3vw, 1.5rem);
+  font-weight: 500; color: rgba(255,255,255,0.45);
+  margin-bottom: 1.5rem; letter-spacing: 0.04em;
+  text-align: center; max-width: 80vw;
+}
+.projector-code {
+  font-family: 'DM Mono', monospace; font-size: clamp(4rem, 18vw, 16rem);
+  font-weight: 500; color: #fff; letter-spacing: 0.08em;
+  line-height: 1; text-align: center;
+}
+.projector-hint {
+  margin-top: 2.5rem; font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.8rem, 1.8vw, 1.1rem); color: rgba(255,255,255,0.3);
+  letter-spacing: 0.03em;
+}
 
 /* ── BUTTONS ── */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.65rem 1.25rem; border-radius: var(--radius-md); font-family: 'DM Sans', sans-serif; font-size: var(--text-sm); font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: all var(--t); text-decoration: none; line-height: 1; }
