@@ -31,6 +31,16 @@ const STATE = {
   studentSources: [],      // Loaded at join time for student rendering
 };
 
+// ── JOIN CODE PROJECTOR ──
+function projectJoinCode(code, title) {
+  document.getElementById('projector-code').textContent = code;
+  document.getElementById('projector-title').textContent = title;
+  document.getElementById('projector-overlay').classList.add('visible');
+}
+function closeProjector() {
+  document.getElementById('projector-overlay').classList.remove('visible');
+}
+
 // ── BOOT ──
 async function boot() {
   const hash = window.location.hash;
@@ -1108,6 +1118,7 @@ function renderAssignmentList(assignments) {
     const sessionActions = a.archived ? '' : isActive
       ?`<div class="assignment-actions-row assignment-actions-primary">
           <button class="btn btn-ghost" onclick="pauseSession('${a.id}','${sessionId}')">⏸ Pause</button>
+          <button class="btn btn-ghost" onclick="projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code fullscreen">📽 Project</button>
           <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
         </div>`
       :isPaused
