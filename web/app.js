@@ -422,7 +422,7 @@ function enterWritingMode(savedText) {
   const promptText = STATE.assignmentPromptText;
   const promptPanel = document.getElementById('prompt-panel');
   if (promptText && promptText.trim()) {
-    const typeLabels = {essay:'Assignment Prompt', document_based:'Document-Based Prompt', source_analysis:'Source Analysis Prompt'};
+    const typeLabels = {essay:'Assignment Prompt', document_based:'Document-Based Prompt', source_analysis:'Source-Based Prompt'};
     document.getElementById('prompt-type-label').textContent = typeLabels[STATE.assignmentPromptType] || 'Assignment Prompt';
     document.getElementById('prompt-body').textContent = promptText;
     promptPanel.style.display = 'block';
@@ -1023,7 +1023,7 @@ async function doImportCsv() {
 function renderAssignmentList(assignments) {
   const el=document.getElementById('assignment-list');
   if(!assignments.length){el.innerHTML='<div class="empty-panel">No assignments yet. Create one above.</div>';return;}
-  const ptLabels={essay:'Essay', document_based:'Document-Based', source_analysis:'Source Analysis'};
+  const ptLabels={essay:'Open Writing', document_based:'Document-Based', source_analysis:'Source-Based'};
 
   const active = assignments.filter(a => !a.archived);
   const archived = assignments.filter(a => a.archived);
@@ -1209,9 +1209,16 @@ function selectPromptType(btn) {
 function updateAddSourceBtn() {
   const btn = document.getElementById('a-add-source-btn');
   if (!btn) return;
-  const max = STATE.selectedPromptType === 'document_based' ? 1 : 8;
-  btn.disabled = STATE.formSources.length >= max;
-  btn.title = STATE.formSources.length >= max ? `${max === 1 ? 'Document-Based uses only 1 source' : 'Maximum 8 sources reached'}` : '';
+  if (STATE.selectedPromptType === 'document_based') {
+    // Document-Based: hide button entirely once 1 source exists
+    btn.style.display = STATE.formSources.length >= 1 ? 'none' : '';
+    btn.disabled = false;
+    btn.title = '';
+  } else {
+    btn.style.display = '';
+    btn.disabled = STATE.formSources.length >= 8;
+    btn.title = STATE.formSources.length >= 8 ? 'Maximum 8 sources reached' : '';
+  }
 }
 
 function cancelEditAssignment() {
@@ -1375,8 +1382,9 @@ function renderFormSources() {
 function addSource() {
   if (STATE.formSources.length >= 8) return;
   const n = STATE.formSources.length + 1;
+  const defaultLabel = STATE.selectedPromptType === 'document_based' ? 'Title of Document' : `Source ${n}`;
   STATE.formSources.push({
-    id: null, label: `Source ${n}`, type: 'text',
+    id: null, label: defaultLabel, type: 'text',
     text_content: '', storage_path: null, storage_url: null,
     _file: null, _uploading: false,
   });
