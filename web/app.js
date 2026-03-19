@@ -24,6 +24,7 @@ const STATE = {
   isPreview: false,
   editingAssignmentId: null,
   selectedPromptType: 'essay',
+  idleLogged: false,
   // Sources
   formSources: [],         // [{id, label, type, text_content, storage_path, storage_url, _file, _uploading}] in teacher form
   studentSources: [],      // Loaded at join time for student rendering
@@ -104,7 +105,6 @@ async function checkPlanLimit(resource, teacherId) {
       console.warn('checkPlanLimit: no access token found, failing open');
       return false;
     }
-    console.log('checkPlanLimit: calling with token prefix', token.slice(0, 20) + '...');
     const resp = await fetch(
       `${SUPABASE_URL}/functions/v1/check-plan-limits`,
       {
@@ -118,7 +118,6 @@ async function checkPlanLimit(resource, teacherId) {
       }
     );
     const result = await resp.json();
-    console.log('checkPlanLimit result:', result);
     if (result.ok) return false;
     const msg = result.message || 'Plan limit reached.';
     openModal(`<div class="modal-header"><h3>Plan limit reached</h3><button class="modal-close" onclick="closeModal()">×</button></div>
@@ -595,13 +594,12 @@ function checkPasteThenDelete(cap) {
   const del=cap-ta.value.length;
   if(del>=100) logEvent('paste_then_delete',{char_count:del,content_preview:'Content removed shortly after paste'});
 }
-let idleLogged=false;
 function checkBurstAndIdle() {
   if(STATE.isSubmitted) return;
   const now=Date.now(),ssi=STATE.lastInputTime?(now-STATE.lastInputTime)/1000:Infinity;
   if(ssi>5&&STATE.pendingBurstChars>=50){logEvent('burst',{char_count:STATE.pendingBurstChars});STATE.pendingBurstChars=0;}
-  if(ssi>120&&!idleLogged&&STATE.lastInputTime){logEvent('idle',{content_preview:`Gap of ~${Math.round(ssi/60)} minute(s)`});idleLogged=true;}
-  if(ssi<30&&idleLogged) idleLogged=false;
+  if(ssi>120&&!STATE.idleLogged&&STATE.lastInputTime){logEvent('idle',{content_preview:`Gap of ~${Math.round(ssi/60)} minute(s)`});STATE.idleLogged=true;}
+  if(ssi<30&&STATE.idleLogged) STATE.idleLogged=false;
 }
 function logEvent(type,extras={}) {
   STATE.processLog.push({type,timestamp:new Date().toISOString(),elapsed_seconds:elapsedSeconds(),char_count:extras.char_count||0,content_preview:extras.content_preview||''});
@@ -632,6 +630,7 @@ async function submitEssay(isAuto=false) {
   if(STATE.isSubmitted) return;
   STATE.isSubmitted=true;
   clearInterval(STATE.timerInterval); clearInterval(STATE.autosaveInterval); clearInterval(STATE.burstCheckInterval);
+  STATE.idleLogged = false;
   if(STATE._visibilityHandler) document.removeEventListener('visibilitychange',STATE._visibilityHandler);
   if(STATE._blurHandler) window.removeEventListener('blur',STATE._blurHandler);
   if(STATE._focusHandler) window.removeEventListener('focus',STATE._focusHandler);
@@ -1396,9 +1395,6 @@ function addSource() {
 }
 
 function removeSource(idx) {
-  const src = STATE.formSources[idx];
-  // Mark for deletion if it has a DB id; otherwise just splice
-  if (src.id) src._deleted = true;
   STATE.formSources.splice(idx, 1);
   renderFormSources();
 }
@@ -1522,7 +1518,6 @@ async function loadSources(assignmentId) {
       }
     }
     STATE.studentSources = sources;
-    console.log('Sources loaded:', sources.length, sources.map(s=>({type:s.source_type, hasUrl:!!s.storage_url, hasText:!!s.text_content})));
   } catch(err) {
     console.error('Failed to load sources:', err);
   }
@@ -1981,8 +1976,6 @@ function selectAssignment(id){
   STATE.selectedAssignmentId=id;STATE.expandedSubId=null;
   loadSubmissions(id).then(()=>{
     // Start Realtime if the selected assignment has an active session
-    const allItems=document.querySelectorAll('.assignment-item');
-    // Find session status from already-loaded dashboard data
     const activeSession=STATE._lastSessions&&STATE._lastSessions[id];
     if(activeSession&&(activeSession.status==='active'||activeSession.status==='paused')){
       subscribeToLiveSession(activeSession.id);
@@ -2041,12 +2034,6 @@ function renderSessionSelector(sessions, activeId, assignmentId) {
   if (existing) existing.remove();
 
   if (sessions.length <= 1) return;
-
-  const statusLabel = s => {
-    if (s.status === 'active') return '<span style="color:var(--success);font-weight:600">● Active</span>';
-    if (s.status === 'paused') return '<span style="color:var(--warning);font-weight:600">⏸ Paused</span>';
-    return '<span style="color:var(--pt-muted)">Ended</span>';
-  };
 
   const options = sessions.map(s =>
     `<option value="${s.id}" ${s.id===activeId?'selected':''}>${formatTime(s.started_at)} — ${s.join_code} — ${s.status}</option>`
