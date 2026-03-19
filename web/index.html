@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖊️</text></svg>">
 </head>
 <body>
 <!-- LANDING -->
@@ -332,7 +333,7 @@
           <div class="assignment-form">
             <div class="form-group">
               <label>Assignment Title</label>
-              <input class="form-input" id="a-title" type="text">
+              <input class="form-input" id="a-title" type="text" placeholder="e.g. Rhetorical Analysis — MLK">
             </div>
             <div class="form-group">
               <label>Class <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
@@ -344,14 +345,14 @@
             <div class="form-group">
               <label>Prompt Type</label>
               <div class="seg-control" id="a-prompt-type-ctrl">
-                <div class="seg-btn active" data-val="essay" onclick="selectPromptType(this)">Open Writing</div>
+                <div class="seg-btn active" data-val="essay" onclick="selectPromptType(this)">Essay</div>
                 <div class="seg-btn" data-val="document_based" onclick="selectPromptType(this)">Document-Based</div>
-                <div class="seg-btn" data-val="source_analysis" onclick="selectPromptType(this)">Source-Based</div>
+                <div class="seg-btn" data-val="source_analysis" onclick="selectPromptType(this)">Source Analysis</div>
               </div>
             </div>
             <div class="form-group">
               <label>Prompt Text</label>
-              <textarea class="form-input" id="a-prompt" rows="4" style="resize:vertical;min-height:80px"></textarea>
+              <textarea class="form-input" id="a-prompt" rows="4" placeholder="Write the assignment prompt students will see…" style="resize:vertical;min-height:80px"></textarea>
             </div>
             <!-- Sources — shown for document_based and source_analysis only -->
             <div class="form-group" id="a-sources-group" style="display:none">
@@ -369,22 +370,34 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Join Code</label>
-                <input class="form-input" id="a-password" type="text" style="font-family:'DM Mono',monospace;letter-spacing:0.06em">
+                <input class="form-input" id="a-password" type="text" placeholder="e.g. EAGLE7" style="font-family:'DM Mono',monospace;letter-spacing:0.06em">
               </div>
               <div class="form-group">
                 <label>Time (min) <span style="font-weight:400;text-transform:none;letter-spacing:0" id="time-limit-opt-label">(optional)</span></label>
-                <input class="form-input" id="a-time" type="number" min="5" max="300" step="5">
+                <input class="form-input" id="a-time" type="number" min="5" max="300" placeholder="45">
                 <div class="form-hint" id="a-time-hint">Leave blank for no time limit.</div>
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Grade Level <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
-                <input class="form-input" id="a-grade" type="text">
+                <select class="form-input form-select" id="a-grade">
+                  <option value="">— select —</option>
+                  <option value="6-8">6–8</option>
+                  <option value="9-10">9–10</option>
+                  <option value="11-12">11–12</option>
+                  <option value="College">College</option>
+                </select>
               </div>
               <div class="form-group">
-                <label>Course / Subject <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
-                <input class="form-input" id="a-subject" type="text">
+                <label>Subject <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                <select class="form-input form-select" id="a-subject">
+                  <option value="">— select —</option>
+                  <option value="ELA">ELA</option>
+                  <option value="History">History</option>
+                  <option value="Science">Science</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
             </div>
             <div class="form-group">
