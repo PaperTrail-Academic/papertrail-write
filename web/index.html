@@ -370,7 +370,11 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Join Code</label>
-                <input class="form-input" id="a-password" type="text" style="font-family:'DM Mono',monospace;letter-spacing:0.06em">
+                <div class="join-code-field">
+                  <input class="form-input" id="a-password" type="text" style="font-family:'DM Mono',monospace;letter-spacing:0.06em">
+                  <button class="btn btn-ghost join-code-regen" type="button" onclick="regenJoinCode()" title="Generate a new code">🔄</button>
+                </div>
+                <div class="form-hint">Use a new code for each session.</div>
               </div>
               <div class="form-group">
                 <label>Time (min) <span style="font-weight:400;text-transform:none;letter-spacing:0" id="time-limit-opt-label">(optional)</span></label>
@@ -384,7 +388,7 @@
                 <input class="form-input" id="a-grade" type="text">
               </div>
               <div class="form-group">
-                <label>Course / Subject <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                <label>Subject <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
                 <input class="form-input" id="a-subject" type="text">
               </div>
             </div>
@@ -487,6 +491,14 @@
 
 <div class="modal-overlay" id="modal-overlay"><div class="modal-box" id="modal-box"></div></div>
 <div id="toast-container"></div>
+
+<!-- Projector overlay -->
+<div id="projector-overlay" onclick="closeProjector()">
+  <button class="projector-close" onclick="closeProjector()">✕ Close</button>
+  <div class="projector-title" id="projector-title"></div>
+  <div class="projector-code" id="projector-code"></div>
+  <div class="projector-hint">Students go to <strong>papertrail.app</strong> and enter this code</div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
