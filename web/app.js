@@ -95,19 +95,6 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); }
 // ── HELPERS ──
 function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
 
-// ── JOIN CODE GENERATOR ──
-const _JC_ADJ = ['AMBER','AZURE','BOLD','BRAVE','BRIGHT','CALM','CEDAR','CLEAR','CLOUD','CORAL','CRISP','CROWN','DAWN','DEEP','DELTA','EAGLE','EARLY','EMBER','FAIR','FALCON','FIELD','FIRM','FLEET','FROST','GOLD','GRAND','GROVE','HAWK','HIGH','IRON','JADE','KEEN','LANCE','LIGHT','LUNAR','MAPLE','MARSH','NOBLE','NORTH','OAK','OCEAN','ONYX','OPEN','ORBIT','PEAK','PINE','PLAIN','PRIME','PROUD','QUIET','RAPID','RAVEN','REEF','RIDGE','RIVER','ROCKY','ROYAL','SAGE','SHARP','SIERRA','SILVER','SLATE','SOLAR','SOUTH','SPARK','SPRING','STEEL','STERN','STILL','STORM','STRONG','SWIFT','TIDAL','TIMBER','TOPO','TRUE','ULTRA','URBAN','VALOR','VERDE','VITAL','VIVID','WARM','WEST','WILD','WINDY','WISE','YOUNG','ZEAL','ZENITH'];
-const _JC_NOUN = ['ARROW','ATLAS','AXLE','BADGE','BASIN','BEACON','BEAR','BLADE','BLOOM','BOLT','BOND','BOOK','BRIDGE','BROOK','BUCK','BUOY','CAPE','CHAIN','CLIFF','COLT','COMET','COVE','CRANE','CREEK','CREST','CROWN','CURVE','DART','DAWN','DEER','DELTA','DOME','DOVE','DRAFT','DRAKE','DRIFT','DRUM','DUNE','DUSK','FAWN','TERN','FERN','FINCH','FJORD','FLARE','FLEET','FLINT','FORGE','FORK','FORT','GLEN','GLYPH','GROVE','GUST','HELM','HERON','HILL','HIVE','HULL','HUNT','ISLE','KEEL','KELP','KNOT','LARK','LEDGE','LENS','LEVER','LINK','LOCH','LOFT','LOOP','LURE','LYNX','MARE','MARK','MARSH','MAST','MESA','MILL','MINK','MIST','MOLE','MONK','MOON','MOOR','MOOSE','MOTH','MOUNT'];
-function generateJoinCode() {
-  const adj = _JC_ADJ[Math.floor(Math.random() * _JC_ADJ.length)];
-  const noun = _JC_NOUN[Math.floor(Math.random() * _JC_NOUN.length)];
-  return adj + noun;
-}
-function regenJoinCode() {
-  const inp = document.getElementById('a-password');
-  if (inp) inp.value = generateJoinCode();
-}
-
 // Returns true if the action is blocked (limit reached), false if allowed.
 // Shows appropriate toast/modal on block.
 async function checkPlanLimit(resource, teacherId) {
@@ -756,9 +743,6 @@ async function loadDashboard() {
     renderAssignmentList(merged);
     renderClassList(classes||[], 'class-list', false);
     refreshClassSelector(classes||[]);
-    // Seed join code field if it's empty (first load or after cancel)
-    const jcField = document.getElementById('a-password');
-    if (jcField && !jcField.value) jcField.value = generateJoinCode();
     if(STATE.selectedAssignmentId) {
       loadSubmissions(STATE.selectedAssignmentId);
       const activeSession=sessionsByAssignment[STATE.selectedAssignmentId];
@@ -1108,7 +1092,6 @@ function renderAssignmentList(assignments) {
     const sessionActions = a.archived ? '' : isActive
       ?`<div class="assignment-actions-row assignment-actions-primary">
           <button class="btn btn-ghost" onclick="pauseSession('${a.id}','${sessionId}')">⏸ Pause</button>
-          <button class="btn btn-ghost" onclick="projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code fullscreen">📽 Project</button>
           <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
         </div>`
       :isPaused
@@ -1293,7 +1276,7 @@ function cancelEditAssignment() {
   STATE.formSources = [];
   document.getElementById('a-title').value = '';
   document.getElementById('a-prompt').value = '';
-  document.getElementById('a-password').value = generateJoinCode();
+  document.getElementById('a-password').value = '';
   document.getElementById('a-time').value = '';
   document.getElementById('a-grade').value = '';
   document.getElementById('a-subject').value = '';
@@ -1862,8 +1845,8 @@ async function doOpenSession(assignmentId) {
   const classId = document.getElementById('open-session-class')?.value||null;
   const label = document.getElementById('open-session-label')?.value.trim()||null;
   try {
-    const {data:asgn}=await db.from('assignments').select('join_code').eq('id',assignmentId).single();
-    let code=asgn?.join_code||Math.random().toString(36).slice(2,7).toUpperCase();
+    // Always generate a fresh code — never reuse the assignment's code
+    let code = generateJoinCode();
     const payload = {
       assignment_id:assignmentId, teacher_id:user.id,
       status:'active', join_code:code,
@@ -1872,8 +1855,9 @@ async function doOpenSession(assignmentId) {
     if (classId) payload.class_id = classId;
     if (label) payload.session_label = label;
     let result=await db.from('sessions').insert(payload);
+    // On collision, regenerate a fresh code and retry once
     if(result.error && result.error.code==='23505') {
-      code = code + Math.random().toString(36).slice(2,4).toUpperCase();
+      code = generateJoinCode();
       payload.join_code = code;
       result=await db.from('sessions').insert(payload);
     }
@@ -2281,17 +2265,6 @@ async function exportTSV() {
   } catch(err){toast('Export failed: '+err.message,'error');}
   finally{if(btn){btn.disabled=false;btn.textContent='↓ Export Report';}}
 }
-
-// ── JOIN CODE PROJECTOR ──
-function projectJoinCode(code, title) {
-  document.getElementById('projector-code').textContent = code;
-  document.getElementById('projector-title').textContent = title;
-  document.getElementById('projector-overlay').classList.add('visible');
-}
-function closeProjector() {
-  document.getElementById('projector-overlay').classList.remove('visible');
-}
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProjector(); });
 
 // ── START ──
 boot();
