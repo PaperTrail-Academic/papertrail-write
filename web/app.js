@@ -103,15 +103,28 @@ function projectJoinCode(code, title) {
 // ── BOOT ──
 async function boot() {
   const hash = window.location.hash;
+  const params = new URLSearchParams(window.location.search);
+
+  // Handle password recovery / invite links
   if (hash.includes('type=recovery') || hash.includes('type=invite')) {
     const { data, error } = await db.auth.getSessionFromUrl();
     window.history.replaceState(null, '', window.location.pathname);
     if (!error && data?.session) { showScreen('new-password'); return; }
     showScreen('teacher-login'); return;
   }
+
+  // Handle Google OAuth PKCE callback (?code=...)
+  if (params.get('code')) {
+    // Supabase JS v2 exchanges the code automatically via getSession()
+    // Clean the URL first so a refresh doesn't re-trigger
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+
   const { data: { session } } = await db.auth.getSession();
   if (session) {
     STATE.teacher = session.user;
+    // Ensure teacher profile row exists (first Google sign-in won't have one yet)
+    await ensureTeacherProfile(session.user);
     document.getElementById('dash-user-email').textContent = session.user.email;
     await loadDashboard();
     showScreen('dashboard');
@@ -122,6 +135,14 @@ async function boot() {
 
 db.auth.onAuthStateChange(async (event, session) => {
   if (event === 'PASSWORD_RECOVERY') { showScreen('new-password'); }
+  // Google OAuth redirect lands here as SIGNED_IN after the code exchange
+  if (event === 'SIGNED_IN' && session && !STATE.teacher) {
+    STATE.teacher = session.user;
+    await ensureTeacherProfile(session.user);
+    document.getElementById('dash-user-email').textContent = session.user.email;
+    await loadDashboard();
+    showScreen('dashboard');
+  }
 });
 
 // ── SCREEN ROUTER ──
@@ -211,6 +232,23 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function formatTime(iso) { if(!iso) return '—'; try { return new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return iso; } }
 function formatElapsed(secs) { if(secs==null) return '—'; const m=Math.floor(secs/60),s=secs%60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 
+// ── ENSURE TEACHER PROFILE (Google OAuth first sign-in) ──
+// Creates a teachers row if one doesn't exist yet.
+// For email/password sign-up, Supabase triggers insert the row via DB hook.
+// For Google OAuth, we do it here on first boot.
+async function ensureTeacherProfile(user) {
+  try {
+    const { data } = await db.from('teachers').select('id').eq('id', user.id).maybeSingle();
+    if (!data) {
+      // First Google sign-in — create the profile row
+      const displayName = user.user_metadata?.full_name || user.user_metadata?.name || null;
+      await db.from('teachers').insert({ id: user.id, display_name: displayName });
+    }
+  } catch(err) {
+    console.warn('ensureTeacherProfile error (non-fatal):', err.message);
+  }
+}
+
 // ── TEACHER SIGN UP ──
 async function teacherSignUp() {
   const name=document.getElementById('su-name').value.trim();
@@ -266,6 +304,123 @@ async function teacherLogout() {
   await db.auth.signOut();
   STATE.teacher=null; STATE.selectedAssignmentId=null; STATE.allSubmissions=[];
   showScreen('landing'); toast('Signed out','default',2000);
+}
+
+// ── GOOGLE OAUTH SIGN IN ──
+async function signInWithGoogle() {
+  try {
+    const { error } = await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        scopes: 'https://www.googleapis.com/auth/drive.readonly',
+      }
+    });
+    if (error) throw error;
+    // Supabase redirects the browser — no further action needed here
+  } catch(err) {
+    toast(err.message || 'Google sign-in failed.', 'error', 4000);
+  }
+}
+
+// ── GOOGLE DRIVE PICKER ──
+
+// Returns true if the signed-in teacher authenticated via Google OAuth
+function isGoogleUser() {
+  if (!STATE.teacher) return false;
+  const identities = STATE.teacher.identities || [];
+  return identities.some(i => i.provider === 'google');
+}
+
+// Returns the Google OAuth access token from the current Supabase session
+async function getGoogleAccessToken() {
+  const { data } = await db.auth.getSession();
+  return data?.session?.provider_token || null;
+}
+
+// Load gapi picker library once, then open picker for the given source index
+let _gapiPickerReady = false;
+
+function _loadGapiPicker(callback) {
+  if (_gapiPickerReady) { callback(); return; }
+  if (typeof gapi === 'undefined') {
+    toast('Google API not loaded yet — try again in a moment.', 'warning');
+    return;
+  }
+  gapi.load('picker', () => { _gapiPickerReady = true; callback(); });
+}
+
+async function openDrivePicker(idx) {
+  const token = await getGoogleAccessToken();
+  if (!token) {
+    toast('Your session does not have Google Drive access. Please sign out and sign in with Google again.', 'warning', 6000);
+    return;
+  }
+
+  _loadGapiPicker(() => {
+    const src = STATE.formSources[idx];
+    // Determine which MIME types to allow based on source type
+    const mimeMap = {
+      pdf: ['application/pdf'],
+      image: ['image/jpeg','image/png','image/webp','image/gif'],
+      docx: [
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.google-apps.document', // Google Docs → export as DOCX
+      ],
+    };
+    const mimes = mimeMap[src.type] || mimeMap.pdf;
+
+    const view = new google.picker.DocsView()
+      .setIncludeFolders(true)
+      .setMimeTypes(mimes.join(','));
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(token)
+      .setCallback((data) => _onDriveFilePicked(idx, data, token))
+      .build();
+
+    picker.setVisible(true);
+  });
+}
+
+async function _onDriveFilePicked(idx, data, token) {
+  if (data.action !== google.picker.Action.PICKED) return;
+  const doc = data.docs[0];
+  if (!doc) return;
+
+  const src = STATE.formSources[idx];
+  const name = doc.name || doc.id;
+
+  toast(`Downloading "${name}" from Drive…`, 'default', 3000);
+
+  try {
+    let url, contentType, fileName;
+
+    if (doc.mimeType === 'application/vnd.google-apps.document') {
+      // Google Doc → export as DOCX
+      url = `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document`;
+      contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      fileName = name.endsWith('.docx') ? name : name + '.docx';
+    } else {
+      // Native file — download directly
+      url = `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`;
+      contentType = doc.mimeType;
+      fileName = name;
+    }
+
+    const resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!resp.ok) throw new Error(`Drive download failed (${resp.status})`);
+
+    const blob = await resp.blob();
+    const file = new File([blob], fileName, { type: contentType });
+
+    handleSourceFileSelect(idx, file);
+  } catch(err) {
+    toast(`Drive import failed: ${err.message}`, 'error', 5000);
+  }
 }
 
 // ── PASSWORD RESET ──
@@ -1598,6 +1753,12 @@ function renderFormSources() {
       const hasFile = src.storage_path || src._file;
       const fileName = src._file ? src._file.name : (src.storage_path ? src.storage_path.split('/').pop() : '');
       const fileSize = src._file ? formatBytes(src._file.size) : '';
+      const driveBtn = isGoogleUser()
+        ? `<button class="btn-drive-picker" onclick="openDrivePicker(${idx})" title="Import from Google Drive">
+            <svg width="14" height="14" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+            From Google Drive
+          </button>`
+        : '';
       bodyHtml = `
         <div class="source-drop-zone ${src._uploading?'drag-over':''}" id="drop-zone-${idx}"
           ondragover="event.preventDefault();this.classList.add('drag-over')"
@@ -1610,6 +1771,7 @@ function renderFormSources() {
               : '<strong>Choose file</strong> or drag and drop here'}
           </div>
         </div>
+        ${driveBtn}
         ${hasFile ? `<div class="source-file-pill">
           <span class="source-file-pill-name">${esc(fileName)}</span>
           ${fileSize ? `<span class="source-file-pill-size">${fileSize}</span>` : ''}
