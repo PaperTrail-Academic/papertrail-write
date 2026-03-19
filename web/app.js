@@ -276,9 +276,8 @@ async function studentLoginStep() {
         return;
       }
 
-      // Try to fetch class roster using the assignment from the validated session
-      const assignmentId = sessions[0].assignment_id;
-      await prefetchRosterForCode(assignmentId);
+      // Fetch roster using the session's class_id (not the assignment's)
+      await prefetchRosterForCode(sessions[0].id);
 
       nameSection.style.display = 'block';
       STATE._joinCodeValidated = true;
@@ -297,15 +296,15 @@ async function studentLoginStep() {
   studentLogin();
 }
 
-// Fetches roster for a known assignmentId and swaps name field to dropdown if available
-async function prefetchRosterForCode(assignmentId) {
+// Fetches roster for a known sessionId and swaps name field to dropdown if available
+async function prefetchRosterForCode(sessionId) {
   const nameGroup = document.getElementById('s-name-group');
   if (!nameGroup) return;
   try {
-    const {data:asgn} = await db.from('assignments').select('class_id').eq('id', assignmentId).single();
-    if (!asgn?.class_id) return;
+    const {data:sess} = await db.from('sessions').select('class_id').eq('id', sessionId).single();
+    if (!sess?.class_id) return;
 
-    const {data:cls} = await db.from('classes').select('student_roster').eq('id', asgn.class_id).single();
+    const {data:cls} = await db.from('classes').select('student_roster').eq('id', sess.class_id).single();
     const roster = cls?.student_roster || [];
     if (!roster.length) return;
 
@@ -342,14 +341,12 @@ async function studentLogin() {
     const session=sessions[0];
 
     // Fetch assignment + class roster in parallel
+    // Class comes from the SESSION (not the assignment) so each run can use a different class
     const [{data:assignment,error:aErr},{data:classRow}] = await Promise.all([
       db.from('assignments').select('*').eq('id',session.assignment_id).single(),
-      // Only fetch class if assignment has one — otherwise resolves to null gracefully
-      db.from('assignments').select('class_id').eq('id',session.assignment_id).single()
-        .then(async ({data:a}) => {
-          if (!a?.class_id) return {data: null};
-          return db.from('classes').select('student_roster').eq('id',a.class_id).single();
-        }),
+      session.class_id
+        ? db.from('classes').select('student_roster').eq('id',session.class_id).single()
+        : Promise.resolve({data: null}),
     ]);
     if(aErr) throw aErr;
 
@@ -1812,21 +1809,56 @@ async function renderDocxSource(url, container) {
 
 async function openSession(assignmentId) {
   const {data:{user}}=await db.auth.getUser(); if(!user) return;
+  const {data:asgn}=await db.from('assignments').select('join_code,class_id,title').eq('id',assignmentId).single();
+  const classOptions = (STATE._classes||[]).map(c=>
+    `<option value="${c.id}" ${c.id===asgn?.class_id?'selected':''}>${esc(c.name)}</option>`
+  ).join('');
+  openModal(`
+    <div class="modal-header">
+      <h3>Open Session</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:var(--space-md);font-size:var(--text-sm);color:var(--pt-muted)"><strong>${esc(asgn?.title||'')}</strong></p>
+      <div class="form-group">
+        <label>Class <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <select class="form-input form-select" id="open-session-class">
+          <option value="">— No class —</option>
+          ${classOptions}
+        </select>
+        <div class="form-hint">Sets the student name dropdown and time accommodations for this run.</div>
+      </div>
+      <div class="form-group">
+        <label>Session Label <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input class="form-input" id="open-session-label" type="text" placeholder="e.g. Period 3 · March 19">
+        <div class="form-hint">Helps identify this run in the session history.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal();doOpenSession('${assignmentId}')">Open Session →</button>
+    </div>\`);
+}
+
+async function doOpenSession(assignmentId) {
+  const {data:{user}}=await db.auth.getUser(); if(!user) return;
+  const classId = document.getElementById('open-session-class')?.value||null;
+  const label = document.getElementById('open-session-label')?.value.trim()||null;
   try {
     const {data:asgn}=await db.from('assignments').select('join_code').eq('id',assignmentId).single();
     let code=asgn?.join_code||Math.random().toString(36).slice(2,7).toUpperCase();
-    let result=await db.from('sessions').insert({
+    const payload = {
       assignment_id:assignmentId, teacher_id:user.id,
       status:'active', join_code:code,
       last_active_at:new Date().toISOString(),
-    });
+    };
+    if (classId) payload.class_id = classId;
+    if (label) payload.session_label = label;
+    let result=await db.from('sessions').insert(payload);
     if(result.error && result.error.code==='23505') {
       code = code + Math.random().toString(36).slice(2,4).toUpperCase();
-      result=await db.from('sessions').insert({
-        assignment_id:assignmentId, teacher_id:user.id,
-        status:'active', join_code:code,
-        last_active_at:new Date().toISOString(),
-      });
+      payload.join_code = code;
+      result=await db.from('sessions').insert(payload);
     }
     if(result.error) throw result.error;
     toast(`Session opened — join code: ${code}`,'success',5000);
@@ -1935,10 +1967,9 @@ function unsubscribeLiveSession() {
 
 async function reopenSession(assignmentId,sessionId) {
   try {
-    const newCode=Math.random().toString(36).slice(2,7).toUpperCase();
-    const {error}=await db.from('sessions').update({status:'active',join_code:newCode,paused_at:null}).eq('id',sessionId);
+    const {error}=await db.from('sessions').update({status:'active',paused_at:null}).eq('id',sessionId);
     if(error) throw error;
-    toast(`Session reopened — new join code: ${newCode}`,'success',5000); loadDashboard();
+    toast('Session reopened','success',3000); loadDashboard();
   } catch(err){toast('Failed to reopen: '+err.message,'error');}
 }
 
@@ -2040,7 +2071,7 @@ async function loadSubmissions(assignmentId) {
   try {
     // Fetch ALL sessions for this assignment, newest first
     const {data:sessions, error:sErr} = await db.from('sessions')
-      .select('id, status, join_code, started_at, ended_at')
+      .select('id, status, join_code, started_at, ended_at, class_id, session_label')
       .eq('assignment_id', assignmentId)
       .order('started_at', {ascending: false});
     if (sErr) throw sErr;
@@ -2086,8 +2117,16 @@ function renderSessionSelector(sessions, activeId, assignmentId) {
 
   if (sessions.length <= 1) return;
 
+  const sessionLabel = (s) => {
+    // Prefer explicit label, then class name, then fallback to date
+    if (s.session_label) return s.session_label;
+    const cls = (STATE._classes||[]).find(c => c.id === s.class_id);
+    if (cls) return `${cls.name} · ${formatTime(s.started_at)}`;
+    return formatTime(s.started_at);
+  };
+  const statusTag = s => s.status === 'active' ? ' ●' : s.status === 'paused' ? ' ⏸' : '';
   const options = sessions.map(s =>
-    `<option value="${s.id}" ${s.id===activeId?'selected':''}>${formatTime(s.started_at)} — ${s.join_code} — ${s.status}</option>`
+    `<option value="${s.id}" ${s.id===activeId?'selected':''}>${sessionLabel(s)}${statusTag(s)}</option>`
   ).join('');
 
   const wrap = document.createElement('div');
