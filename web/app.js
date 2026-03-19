@@ -2254,10 +2254,157 @@ function renderDetailRow(sub) {
   const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
   const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
   const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
-  return `<tr class="detail-row"><td class="detail-cell" colspan="8"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm)"><div class="disclaimer">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div></div></td></tr>`;
+  return `<tr class="detail-row"><td class="detail-cell" colspan="8"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
-async function unsubmitStudent(subId, displayName) {
+// ── PRINT STUDENT REPORT ──
+async function printStudentReport(subId) {
+  try {
+    // Fetch submission
+    const {data:sub, error:sErr} = await db.from('submissions').select('*').eq('id', subId).single();
+    if (sErr) throw sErr;
+    // Fetch assignment via session
+    const {data:sess, error:sessErr} = await db.from('sessions').select('assignment_id, join_code, started_at, session_label, class_id').eq('id', sub.session_id).single();
+    if (sessErr) throw sessErr;
+    const {data:asgn, error:aErr} = await db.from('assignments').select('title, prompt_type, prompt_text').eq('id', sess.assignment_id).single();
+    if (aErr) throw aErr;
+
+    const ptLabels = {essay:'Open Writing', document_based:'Document-Based', source_analysis:'Source-Based'};
+    const ptLabel = ptLabels[asgn.prompt_type] || 'Open Writing';
+    const log = sub.process_log || [];
+    const pastes = log.filter(e=>e.type==='paste');
+    const blurs = log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden');
+    const largePaste = pastes.some(e=>e.char_count>200);
+    const wordDrops = log.filter(e=>e.type==='word_drop');
+    const focuses = log.filter(e=>e.type==='window_focus');
+    const totalAway = focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
+
+    const logRows = log.length ? log.map(e => `
+      <tr>
+        <td style="padding:0.3rem 0.5rem;white-space:nowrap;color:#555;font-size:11px">${labelForEvent(e.type)}</td>
+        <td style="padding:0.3rem 0.5rem;white-space:nowrap;color:#888;font-size:11px">${formatTime(e.timestamp)}</td>
+        <td style="padding:0.3rem 0.5rem;white-space:nowrap;color:#888;font-size:11px">${formatElapsed(e.elapsed_seconds)} in</td>
+        <td style="padding:0.3rem 0.5rem;color:#555;font-size:11px">${esc(getLogDetail(e))}</td>
+      </tr>`).join('') : '<tr><td colspan="4" style="padding:0.5rem;color:#999;font-size:11px">No events logged.</td></tr>';
+
+    const flags = [
+      pastes.length > 0 ? `${pastes.length} paste event${pastes.length>1?'s':''}` : '',
+      largePaste ? 'paste over 200 chars' : '',
+      blurs.length > 0 ? `left window ${blurs.length}×` : '',
+      wordDrops.length > 0 ? 'notable word count drop' : '',
+    ].filter(Boolean).join(' · ');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PaperTrail Write — ${esc(sub.student_display_name)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; color: #1a2235; background: #fff; padding: 2.5rem 3rem; max-width: 760px; margin: 0 auto; font-size: 13px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a2235; padding-bottom: 0.75rem; margin-bottom: 1.5rem; }
+    .wordmark { font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600; color: #1a2235; }
+    .wordmark em { font-family: 'Lora', serif; font-style: italic; color: #7B5EA7; }
+    .print-date { font-size: 11px; color: #888; text-align: right; margin-top: 0.2rem; }
+    .section { margin-bottom: 1.25rem; }
+    .label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #888; margin-bottom: 0.3rem; }
+    .value { font-size: 13px; color: #1a2235; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+    .prompt-box { background: #f7f7fa; border-left: 3px solid #7B5EA7; padding: 0.75rem 1rem; border-radius: 0 4px 4px 0; margin-bottom: 1.25rem; }
+    .prompt-box .label { margin-bottom: 0.4rem; }
+    .prompt-text { font-family: 'Lora', serif; font-size: 13px; line-height: 1.6; color: #1a2235; white-space: pre-wrap; }
+    .essay-box { border: 1px solid #ddd; border-radius: 4px; padding: 1rem; margin-bottom: 1.25rem; }
+    .essay-text { font-family: 'Lora', serif; font-size: 13px; line-height: 1.75; color: #1a2235; white-space: pre-wrap; }
+    .flags { font-size: 11px; color: #b45309; margin-bottom: 0.75rem; font-weight: 500; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1.25rem; }
+    thead th { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #888; text-align: left; padding: 0.3rem 0.5rem; border-bottom: 1px solid #e0e0e0; }
+    tbody tr:nth-child(even) { background: #f9f9fb; }
+    .disclaimer { font-size: 10px; color: #aaa; line-height: 1.5; border-top: 1px solid #e0e0e0; padding-top: 0.75rem; margin-top: 1rem; }
+    @media print {
+      body { padding: 1.5rem 2rem; }
+      @page { margin: 1.5cm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="wordmark">PaperTrail <em>Write</em></div>
+      <div style="font-size:11px;color:#888;margin-top:0.2rem">Session Report</div>
+    </div>
+    <div class="print-date">Printed ${new Date().toLocaleString(undefined,{month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+  </div>
+
+  <div class="section">
+    <div class="label">Assignment</div>
+    <div class="value" style="font-size:1rem;font-weight:600">${esc(asgn.title)}</div>
+    <div style="font-size:11px;color:#888;margin-top:0.2rem">${esc(ptLabel)}</div>
+  </div>
+
+  ${asgn.prompt_text ? `
+  <div class="prompt-box">
+    <div class="label">Prompt</div>
+    <div class="prompt-text">${esc(asgn.prompt_text)}</div>
+  </div>` : ''}
+
+  <div class="meta-grid">
+    <div>
+      <div class="label">Student</div>
+      <div class="value">${esc(sub.student_display_name)}</div>
+    </div>
+    <div>
+      <div class="label">Period</div>
+      <div class="value">${esc(sub.class_period||'—')}</div>
+    </div>
+    <div>
+      <div class="label">Session started</div>
+      <div class="value">${formatTime(sub.started_at)}</div>
+    </div>
+    <div>
+      <div class="label">Submitted</div>
+      <div class="value">${sub.submitted_at ? formatTime(sub.submitted_at) : 'Not submitted'}</div>
+    </div>
+    <div>
+      <div class="label">Word count</div>
+      <div class="value">${sub.word_count||0}</div>
+    </div>
+    <div>
+      <div class="label">Time away</div>
+      <div class="value">${totalAway > 0 ? totalAway+'s' : '—'}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Essay</div>
+    <div class="essay-box">
+      <div class="essay-text">${esc(sub.essay_text||'(no essay text)')}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Process Log</div>
+    ${flags ? `<div class="flags">Notable: ${esc(flags)}</div>` : ''}
+    <table>
+      <thead><tr><th>Event</th><th>Time</th><th>Elapsed</th><th>Detail</th></tr></thead>
+      <tbody>${logRows}</tbody>
+    </table>
+  </div>
+
+  <div class="disclaimer">This process log is one input among many. It records observable writing behaviours — paste events, window focus changes, and typing patterns — but does not record keystrokes, clipboard contents, or screen activity. Educator judgment governs all interpretation and any subsequent conversation with the student.</div>
+
+  <script>window.onload = () => window.print();<\/script>
+</body>
+</html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { toast('Pop-up blocked — please allow pop-ups for this site', 'warning', 5000); return; }
+    w.document.write(html);
+    w.document.close();
+  } catch(err) { toast('Failed to generate report: ' + err.message, 'error'); }
+}
+
+
   openModal(`
     <div class="modal-header">
       <h3>Return student to session?</h3>
