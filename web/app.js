@@ -95,6 +95,19 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); }
 // ── HELPERS ──
 function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
 
+// ── JOIN CODE GENERATOR ──
+const _JC_ADJ = ['AMBER','AZURE','BOLD','BRAVE','BRIGHT','CALM','CEDAR','CLEAR','CLOUD','CORAL','CRISP','CROWN','DAWN','DEEP','DELTA','EAGLE','EARLY','EMBER','FAIR','FALCON','FIELD','FIRM','FLEET','FROST','GOLD','GRAND','GROVE','HAWK','HIGH','IRON','JADE','KEEN','LANCE','LIGHT','LUNAR','MAPLE','MARSH','NOBLE','NORTH','OAK','OCEAN','ONYX','OPEN','ORBIT','PEAK','PINE','PLAIN','PRIME','PROUD','QUIET','RAPID','RAVEN','REEF','RIDGE','RIVER','ROCKY','ROYAL','SAGE','SHARP','SIERRA','SILVER','SLATE','SOLAR','SOUTH','SPARK','SPRING','STEEL','STERN','STILL','STORM','STRONG','SWIFT','TIDAL','TIMBER','TOPO','TRUE','ULTRA','URBAN','VALOR','VERDE','VITAL','VIVID','WARM','WEST','WILD','WINDY','WISE','YOUNG','ZEAL','ZENITH'];
+const _JC_NOUN = ['ARROW','ATLAS','AXLE','BADGE','BASIN','BEACON','BEAR','BLADE','BLOOM','BOLT','BOND','BOOK','BRIDGE','BROOK','BUCK','BUOY','CAPE','CHAIN','CLIFF','COLT','COMET','COVE','CRANE','CREEK','CREST','CROWN','CURVE','DART','DAWN','DEER','DELTA','DOME','DOVE','DRAFT','DRAKE','DRIFT','DRUM','DUNE','DUSK','FAWN','TERN','FERN','FINCH','FJORD','FLARE','FLEET','FLINT','FORGE','FORK','FORT','GLEN','GLYPH','GROVE','GUST','HELM','HERON','HILL','HIVE','HULL','HUNT','ISLE','KEEL','KELP','KNOT','LARK','LEDGE','LENS','LEVER','LINK','LOCH','LOFT','LOOP','LURE','LYNX','MARE','MARK','MARSH','MAST','MESA','MILL','MINK','MIST','MOLE','MONK','MOON','MOOR','MOOSE','MOTH','MOUNT'];
+function generateJoinCode() {
+  const adj = _JC_ADJ[Math.floor(Math.random() * _JC_ADJ.length)];
+  const noun = _JC_NOUN[Math.floor(Math.random() * _JC_NOUN.length)];
+  return adj + noun;
+}
+function regenJoinCode() {
+  const inp = document.getElementById('a-password');
+  if (inp) inp.value = generateJoinCode();
+}
+
 // Returns true if the action is blocked (limit reached), false if allowed.
 // Shows appropriate toast/modal on block.
 async function checkPlanLimit(resource, teacherId) {
@@ -725,31 +738,27 @@ async function loadDashboard() {
       {data:classes,error:cErr},
     ] = await Promise.all([
       db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}),
-      db.from('sessions').select('*').eq('teacher_id',user.id), // fetch ALL sessions including ended
+      db.from('sessions').select('*').eq('teacher_id',user.id).neq('status','ended'),
       db.from('classes').select('*').eq('teacher_id',user.id).order('name',{ascending:true}),
     ]);
     if(aErr) throw aErr;
     if(sErr) throw sErr;
     STATE._classes = classes||[];
-    // Active/paused session per assignment (for status pill + join code display)
     const sessionsByAssignment={};
-    // Whether the assignment has ever been run (any session, including ended)
-    const hasEverRun={};
-    (sessions||[]).forEach(s=>{
-      hasEverRun[s.assignment_id]=true;
-      if(s.status!=='ended') sessionsByAssignment[s.assignment_id]=s;
-    });
+    (sessions||[]).forEach(s=>{ sessionsByAssignment[s.assignment_id]=s; });
     STATE._lastSessions=sessionsByAssignment;
     const merged=(assignments||[]).map(a=>({
       ...a,
       _session: sessionsByAssignment[a.id]||null,
-      _status: sessionsByAssignment[a.id]?.status||(hasEverRun[a.id]?'inactive':'draft'),
-      _hasEverRun: hasEverRun[a.id]||false,
+      _status: sessionsByAssignment[a.id]?.status||'draft',
       _joinCode: sessionsByAssignment[a.id]?.join_code||a.join_code||'—',
     }));
     renderAssignmentList(merged);
     renderClassList(classes||[], 'class-list', false);
     refreshClassSelector(classes||[]);
+    // Seed join code field if it's empty (first load or after cancel)
+    const jcField = document.getElementById('a-password');
+    if (jcField && !jcField.value) jcField.value = generateJoinCode();
     if(STATE.selectedAssignmentId) {
       loadSubmissions(STATE.selectedAssignmentId);
       const activeSession=sessionsByAssignment[STATE.selectedAssignmentId];
@@ -1085,7 +1094,6 @@ function renderAssignmentList(assignments) {
   const renderCard = (a) => {
     const isActive=a._status==='active';
     const isPaused=a._status==='paused';
-    const isInactive=a._status==='inactive'; // has run before, no current session
     const sessionId=a._session?.id||null;
     const statusPill=isActive
       ?`<span class="pill pill-active">Active</span>`
@@ -1093,15 +1101,14 @@ function renderAssignmentList(assignments) {
         ?`<span class="pill" style="background:#fff8e1;color:var(--warning);border-color:#f0c040">Paused</span>`
         :a.archived
           ?`<span class="pill" style="background:var(--pt-light);color:var(--pt-muted);border-color:var(--pt-border)">Archived</span>`
-          :isInactive
-            ?`<span class="pill" style="background:var(--pt-light);color:var(--pt-muted);border-color:var(--pt-border)">Inactive</span>`
-            :`<span class="pill pill-inactive">Draft</span>`;
+          :`<span class="pill pill-inactive">Draft</span>`;
     const ptLabel=ptLabels[a.prompt_type]||'Essay';
     const className = a.class_id ? ((STATE._classes||[]).find(c=>c.id===a.class_id)?.name||'') : '';
     const classPart = className ? ` · ${esc(className)}` : '';
     const sessionActions = a.archived ? '' : isActive
       ?`<div class="assignment-actions-row assignment-actions-primary">
           <button class="btn btn-ghost" onclick="pauseSession('${a.id}','${sessionId}')">⏸ Pause</button>
+          <button class="btn btn-ghost" onclick="projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code fullscreen">📽 Project</button>
           <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
         </div>`
       :isPaused
@@ -1110,26 +1117,20 @@ function renderAssignmentList(assignments) {
             <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
           </div>`
         :`<div class="assignment-actions-row assignment-actions-primary">
-            <button class="btn btn-success" onclick="openSession('${a.id}')">${isInactive?'Open New Session':'Open Session'}</button>
+            <button class="btn btn-success" onclick="openSession('${a.id}')">Open Session</button>
             <button class="btn btn-danger" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>
           </div>`;
     const editPreviewActions = a.archived
       ?`<div class="assignment-actions-row assignment-actions-secondary">
           <button class="btn btn-secondary" onclick="event.stopPropagation();unarchiveAssignment('${a.id}')">↩ Unarchive</button>
-          <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate & Edit</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Copy to New</button>
         </div>`
-      :a._hasEverRun
-        ?`<div class="assignment-actions-row assignment-actions-secondary">
-            <button class="btn btn-ghost" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
-            <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate & Edit</button>
-            <button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>
-          </div>`
-        :`<div class="assignment-actions-row assignment-actions-secondary">
-            <button class="btn btn-ghost" onclick="event.stopPropagation();editAssignment('${a.id}')">Edit</button>
-            <button class="btn btn-ghost" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
-            <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate</button>
-            <button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>
-          </div>`;
+      :`<div class="assignment-actions-row assignment-actions-secondary">
+          <button class="btn btn-ghost" onclick="event.stopPropagation();editAssignment('${a.id}')">Edit</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate</button>
+          <button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>
+        </div>`;
     return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
       <div class="assignment-item-title">${esc(a.title)}</div>
       <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
@@ -1198,50 +1199,25 @@ async function duplicateAssignment(id) {
   const {data:{user}} = await db.auth.getUser();
   if (!user) return;
 
+  // Check plan limits
   const limited = await checkPlanLimit('assignment', user.id);
   if (limited) return;
 
-  const {data:orig, error:aErr} = await db.from('assignments').select('title').eq('id', id).single();
-  if (aErr) { toast('Could not load assignment', 'error'); return; }
-
-  openModal(`
-    <div class="modal-header">
-      <h3>Duplicate Assignment</h3>
-      <button class="modal-close" onclick="closeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:var(--text-sm);color:var(--pt-muted);margin-bottom:var(--space-md)">Give the copy a new title. You can edit all other details after.</p>
-      <div class="form-group">
-        <label>Title</label>
-        <input class="form-input" id="dup-title-input" type="text" value="${esc('Copy of ' + orig.title)}"
-          onkeydown="if(event.key==='Enter') confirmDuplicate('${id}')">
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="dup-confirm-btn" onclick="confirmDuplicate('${id}')">Duplicate & Edit →</button>
-    </div>`);
-  setTimeout(() => { const inp = document.getElementById('dup-title-input'); if (inp) { inp.focus(); inp.select(); } }, 50);
-}
-
-async function confirmDuplicate(id) {
-  const newTitle = document.getElementById('dup-title-input')?.value.trim();
-  if (!newTitle) { toast('Please enter a title', 'warning'); return; }
-  const btn = document.getElementById('dup-confirm-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Duplicating…'; }
-
-  const {data:{user}} = await db.auth.getUser();
-  if (!user) return;
   try {
+    // Fetch the original assignment
     const {data:orig, error:aErr} = await db.from('assignments').select('*').eq('id', id).single();
     if (aErr) throw aErr;
+
+    // Fetch its sources
     const {data:origSources} = await db.from('sources').select('*').eq('assignment_id', id).order('sort_order', {ascending: true});
 
+    // Generate a new join code
     const newCode = Math.random().toString(36).slice(2,7).toUpperCase();
 
+    // Insert the new assignment
     const {data:newA, error:nErr} = await db.from('assignments').insert({
       teacher_id: user.id,
-      title: newTitle,
+      title: `Copy of ${orig.title}`,
       join_code: newCode,
       prompt_type: orig.prompt_type,
       prompt_text: orig.prompt_text,
@@ -1249,11 +1225,12 @@ async function confirmDuplicate(id) {
       allow_spellcheck: orig.allow_spellcheck,
       grade_level: orig.grade_level,
       subject: orig.subject,
-      // class_id intentionally omitted — teacher picks class fresh at session open
+      class_id: orig.class_id,
       archived: false,
     }).select().single();
     if (nErr) throw nErr;
 
+    // Copy sources — reuse existing storage_path, no re-upload needed
     if (origSources && origSources.length) {
       const sourceRows = origSources.map((s, i) => ({
         assignment_id: newA.id,
@@ -1268,14 +1245,9 @@ async function confirmDuplicate(id) {
       if (sErr) console.warn('Source copy failed:', sErr.message);
     }
 
-    closeModal();
-    toast(`"${newTitle}" created — editing now`, 'success', 4000);
-    await loadDashboard();
-    editAssignment(newA.id);
-  } catch(err) {
-    toast('Duplicate failed: ' + err.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Duplicate & Edit →'; }
-  }
+    toast(`"Copy of ${orig.title}" created as a new draft`, 'success', 4000);
+    loadDashboard();
+  } catch(err) { toast('Duplicate failed: ' + err.message, 'error'); }
 }
 
 
@@ -1321,7 +1293,7 @@ function cancelEditAssignment() {
   STATE.formSources = [];
   document.getElementById('a-title').value = '';
   document.getElementById('a-prompt').value = '';
-  document.getElementById('a-password').value = '';
+  document.getElementById('a-password').value = generateJoinCode();
   document.getElementById('a-time').value = '';
   document.getElementById('a-grade').value = '';
   document.getElementById('a-subject').value = '';
@@ -1355,18 +1327,8 @@ function loadAssignmentIntoForm(a, sources=[]) {
   document.getElementById('a-sources-group').style.display = needsSources ? 'block' : 'none';
   renderFormSources();
   document.getElementById('assignment-form-title').textContent = 'Edit Assignment';
-  const saveBtn = document.getElementById('create-assignment-btn');
-  saveBtn.textContent = 'Save Changes';
-  saveBtn.disabled = false;
+  document.getElementById('create-assignment-btn').textContent = 'Save Changes';
   document.getElementById('cancel-edit-btn').style.display = 'block';
-  // Ensure sidebar is open so the form is visible
-  if (!STATE._newAssignmentOpen) {
-    STATE._newAssignmentOpen = true;
-    const body = document.getElementById('new-assignment-body');
-    const chevron = document.getElementById('new-assignment-chevron');
-    if (body) body.style.display = '';
-    if (chevron) chevron.style.transform = '';
-  }
   document.getElementById('a-title').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
@@ -1388,8 +1350,6 @@ async function createAssignment() {
   if(minutes!==null&&(minutes<5||minutes>300)){toast('Time must be between 5 and 300 minutes (or leave blank for no limit)','warning');return;}
   const btn=document.getElementById('create-assignment-btn');
   btn.disabled=true;
-  // Always sync label from STATE — prevents edit-then-create bug if DOM drifted
-  btn.textContent = STATE.editingAssignmentId ? 'Save Changes' : 'Create Assignment';
   // Check plan limits for new assignments (not edits)
   if (!STATE.editingAssignmentId) {
     const limited = await checkPlanLimit('assignment', user.id);
@@ -2321,6 +2281,17 @@ async function exportTSV() {
   } catch(err){toast('Export failed: '+err.message,'error');}
   finally{if(btn){btn.disabled=false;btn.textContent='↓ Export Report';}}
 }
+
+// ── JOIN CODE PROJECTOR ──
+function projectJoinCode(code, title) {
+  document.getElementById('projector-code').textContent = code;
+  document.getElementById('projector-title').textContent = title;
+  document.getElementById('projector-overlay').classList.add('visible');
+}
+function closeProjector() {
+  document.getElementById('projector-overlay').classList.remove('visible');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProjector(); });
 
 // ── START ──
 boot();
