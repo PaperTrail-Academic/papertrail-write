@@ -104,19 +104,10 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); }
 
 // ── HELPERS ──
 function countWords(t) { return t.trim() ? t.trim().split(/\s+/).length : 0; }
-
-// ── JOIN CODE GENERATOR ──
-const _JC_ADJ = ['AMBER','AZURE','BOLD','BRAVE','BRIGHT','CALM','CEDAR','CLEAR','CLOUD','CORAL','CRISP','CROWN','DAWN','DEEP','DELTA','EAGLE','EARLY','EMBER','FAIR','FALCON','FIELD','FIRM','FLEET','FROST','GOLD','GRAND','GROVE','HAWK','HIGH','IRON','JADE','KEEN','LANCE','LIGHT','LUNAR','MAPLE','MARSH','NOBLE','NORTH','OAK','OCEAN','ONYX','OPEN','ORBIT','PEAK','PINE','PLAIN','PRIME','PROUD','QUIET','RAPID','RAVEN','REEF','RIDGE','RIVER','ROCKY','ROYAL','SAGE','SHARP','SIERRA','SILVER','SLATE','SOLAR','SOUTH','SPARK','SPRING','STEEL','STERN','STILL','STORM','STRONG','SWIFT','TIDAL','TIMBER','TOPO','TRUE','ULTRA','URBAN','VALOR','VERDE','VITAL','VIVID','WARM','WEST','WILD','WINDY','WISE','YOUNG','ZEAL','ZENITH'];
-const _JC_NOUN = ['ARROW','ATLAS','AXLE','BADGE','BASIN','BEACON','BEAR','BLADE','BLOOM','BOLT','BOND','BOOK','BRIDGE','BROOK','BUCK','BUOY','CAPE','CHAIN','CLIFF','COLT','COMET','COVE','CRANE','CREEK','CREST','CROWN','CURVE','DART','DAWN','DEER','DELTA','DOME','DOVE','DRAFT','DRAKE','DRIFT','DRUM','DUNE','DUSK','FAWN','TERN','FERN','FINCH','FJORD','FLARE','FLEET','FLINT','FORGE','FORK','FORT','GLEN','GLYPH','GROVE','GUST','HELM','HERON','HILL','HIVE','HULL','HUNT','ISLE','KEEL','KELP','KNOT','LARK','LEDGE','LENS','LEVER','LINK','LOCH','LOFT','LOOP','LURE','LYNX','MARE','MARK','MARSH','MAST','MESA','MILL','MINK','MIST','MOLE','MONK','MOON','MOOR','MOOSE','MOTH','MOUNT'];
-function generateJoinCode() {
-  const adj = _JC_ADJ[Math.floor(Math.random() * _JC_ADJ.length)];
-  const noun = _JC_NOUN[Math.floor(Math.random() * _JC_NOUN.length)];
-  return adj + noun;
-}
-function regenJoinCode() {
-  const inp = document.getElementById('a-password');
-  if (inp) inp.value = generateJoinCode();
-}
+// Compact join code generator — used only by doOpenSession at session-open time
+const _JC_A=['AMBER','AZURE','BOLD','BRAVE','BRIGHT','CALM','CEDAR','CLEAR','CORAL','CRISP','DAWN','DEEP','EAGLE','EARLY','EMBER','FAIR','FALCON','FIELD','FLEET','FROST','GOLD','GRAND','GROVE','HAWK','IRON','JADE','KEEN','LANCE','LIGHT','MAPLE','NOBLE','NORTH','OAK','OCEAN','PEAK','PINE','PRIME','PROUD','RAPID','RAVEN','REEF','RIDGE','RIVER','ROYAL','SAGE','SHARP','SILVER','SLATE','SOLAR','SPARK','SPRING','STEEL','STORM','SWIFT','TIMBER','TRUE','VALOR','VIVID','WARM','WILD','WISE'];
+const _JC_N=['ARROW','ATLAS','BEACON','BLADE','BLOOM','BOLT','BROOK','CAPE','CLIFF','COMET','COVE','CRANE','CREEK','CREST','DART','DELTA','DOVE','DRUM','DUNE','FAWN','FERN','FINCH','FLARE','FLINT','FORGE','FORT','GLEN','HELM','HERON','HILL','HULL','ISLE','KEEL','LARK','LEDGE','LENS','LOCH','LOFT','LYNX','MAST','MESA','MILL','MIST','MOON','MOOR','MOOSE','MOUNT','REEF','RIDGE','SPARK','TERN'];
+function _mkCode(){return _JC_A[Math.floor(Math.random()*_JC_A.length)]+_JC_N[Math.floor(Math.random()*_JC_N.length)];}
 
 // Returns true if the action is blocked (limit reached), false if allowed.
 // Shows appropriate toast/modal on block.
@@ -815,9 +806,6 @@ async function loadDashboard() {
     renderAssignmentList(merged);
     renderClassList(classes||[], 'class-list', false);
     refreshClassSelector(classes||[]);
-    // Seed join code field if empty (first load or after cancel)
-    const jcField = document.getElementById('a-password');
-    if (jcField && !jcField.value) jcField.value = generateJoinCode();
     if(STATE.selectedAssignmentId) {
       loadSubmissions(STATE.selectedAssignmentId);
       const activeSession=sessionsByAssignment[STATE.selectedAssignmentId];
@@ -1037,6 +1025,44 @@ function showAddClassModal() {
       <button class="btn btn-primary" onclick="doAddClass()">Create Class</button>
     </div>`);
   setTimeout(()=>document.getElementById('new-class-name')?.focus(), 50);
+}
+
+function showAddClassFromForm() {
+  openModal(`<div class="modal-header"><h3>New class</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Class Name</label>
+        <input class="form-input" id="new-class-name" type="text" placeholder="e.g. English 10 — Period 3"
+          onkeydown="if(event.key==='Enter') doAddClassFromForm()">
+        <div class="form-hint">You can import a roster into this class later from the Classes panel.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doAddClassFromForm()">Create Class</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('new-class-name')?.focus(), 50);
+}
+
+async function doAddClassFromForm() {
+  const {data:{user}} = await db.auth.getUser(); if (!user) return;
+  const name = document.getElementById('new-class-name')?.value.trim();
+  if (!name) { toast('Please enter a class name','warning'); return; }
+  const limited = await checkPlanLimit('class', user.id);
+  if (limited) return;
+  try {
+    const {data:cls,error} = await db.from('classes').insert({teacher_id:user.id, name, student_roster:[]}).select().single();
+    if (error) throw error;
+    closeModal();
+    STATE._classes = [...(STATE._classes||[]), cls].sort((a,b)=>a.name.localeCompare(b.name));
+    renderClassList(STATE._classes, 'class-list', false);
+    renderClassList(STATE._classes, 'roster-class-list', true);
+    // Refresh the assignment form selector and auto-select the new class
+    refreshClassSelector(STATE._classes);
+    const sel = document.getElementById('a-class');
+    if (sel) sel.value = cls.id;
+    toast(`Class "${name}" created and selected`, 'success');
+  } catch(err) { toast('Failed to create class: '+err.message,'error'); }
 }
 
 function showEditClassModal(classId, currentName) {
@@ -1301,17 +1327,13 @@ async function confirmDuplicate(id) {
     const {data:orig, error:aErr} = await db.from('assignments').select('*').eq('id', id).single();
     if (aErr) throw aErr;
     const {data:origSources} = await db.from('sources').select('*').eq('assignment_id', id).order('sort_order', {ascending: true});
-    const newCode = generateJoinCode();
     const {data:newA, error:nErr} = await db.from('assignments').insert({
       teacher_id: user.id,
       title: newTitle,
-      join_code: newCode,
       prompt_type: orig.prompt_type,
       prompt_text: orig.prompt_text,
       time_limit_minutes: orig.time_limit_minutes,
       allow_spellcheck: orig.allow_spellcheck,
-      grade_level: orig.grade_level,
-      subject: orig.subject,
       // class_id intentionally omitted — teacher picks fresh at session open
       archived: false,
     }).select().single();
@@ -1382,10 +1404,7 @@ function cancelEditAssignment() {
   STATE.formSources = [];
   document.getElementById('a-title').value = '';
   document.getElementById('a-prompt').value = '';
-  document.getElementById('a-password').value = generateJoinCode();
   document.getElementById('a-time').value = '';
-  document.getElementById('a-grade').value = '';
-  document.getElementById('a-subject').value = '';
   document.getElementById('a-spellcheck').checked = false;
   const classSel = document.getElementById('a-class');
   if (classSel) classSel.value = '';
@@ -1404,10 +1423,7 @@ function loadAssignmentIntoForm(a, sources=[]) {
   STATE.formSources = sources.map(s => ({...s, _file: null, _uploading: false}));
   document.getElementById('a-title').value = a.title || '';
   document.getElementById('a-prompt').value = a.prompt_text || '';
-  document.getElementById('a-password').value = a.join_code || '';
   document.getElementById('a-time').value = a.time_limit_minutes || '';
-  document.getElementById('a-grade').value = a.grade_level || '';
-  document.getElementById('a-subject').value = a.subject || '';
   document.getElementById('a-spellcheck').checked = a.allow_spellcheck || false;
   const classSel = document.getElementById('a-class');
   if (classSel) classSel.value = a.class_id || '';
@@ -1434,17 +1450,13 @@ async function createAssignment() {
   const {data:{user}}=await db.auth.getUser();
   if(!user){toast('Please sign in again.','error');return;}
   const title=document.getElementById('a-title').value.trim();
-  const joinCode=document.getElementById('a-password').value.trim().toUpperCase();
   const promptText=document.getElementById('a-prompt').value.trim();
   const minutesRaw=document.getElementById('a-time').value.trim();
   const minutes=minutesRaw?parseInt(minutesRaw):null;
-  const gradeLevel=document.getElementById('a-grade').value||null;
-  const subject=document.getElementById('a-subject').value||null;
   const allowSpellcheck=document.getElementById('a-spellcheck').checked;
   const promptType=STATE.selectedPromptType||'essay';
   const classId=document.getElementById('a-class')?.value||null;
   if(!title){toast('Please enter an assignment title','warning');return;}
-  if(!joinCode){toast('Please enter a join code','warning');return;}
   if(minutes!==null&&(minutes<5||minutes>300)){toast('Time must be between 5 and 300 minutes (or leave blank for no limit)','warning');return;}
   const btn=document.getElementById('create-assignment-btn');
   btn.disabled=true;
@@ -1456,13 +1468,11 @@ async function createAssignment() {
   }
   // Only include columns that have values — prevents 400 if optional columns don't exist in live DB
   const payload={
-    teacher_id:user.id, title, join_code:joinCode,
+    teacher_id:user.id, title,
     prompt_type:promptType, prompt_text:promptText||null,
     time_limit_minutes:minutes,
   };
   if (classId) payload.class_id = classId;
-  if (gradeLevel) payload.grade_level = gradeLevel;
-  if (subject) payload.subject = subject;
   if (allowSpellcheck) payload.allow_spellcheck = allowSpellcheck;
   try {
     let assignmentId = STATE.editingAssignmentId;
@@ -1962,7 +1972,7 @@ async function doOpenSession(assignmentId) {
   const label = document.getElementById('open-session-label')?.value.trim()||null;
   try {
     // Always generate a fresh code — never reuse the assignment's code
-    let code = generateJoinCode();
+    let code = _mkCode();
     const payload = {
       assignment_id:assignmentId, teacher_id:user.id,
       status:'active', join_code:code,
@@ -1973,7 +1983,7 @@ async function doOpenSession(assignmentId) {
     let result=await db.from('sessions').insert(payload);
     // On collision, regenerate a fresh code and retry once
     if(result.error && result.error.code==='23505') {
-      code = generateJoinCode();
+      code = _mkCode();
       payload.join_code = code;
       result=await db.from('sessions').insert(payload);
     }
