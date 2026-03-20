@@ -183,6 +183,9 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .landing-choice-icon { font-size: 1.8rem; margin-bottom: 0.65rem; }
 .landing-choice-label { font-family: 'Lora', serif; font-size: var(--text-lg); font-weight: 600; margin-bottom: 0.3rem; }
 .landing-choice-desc { font-size: var(--text-xs); color: rgba(255,255,255,0.45); line-height: 1.5; }
+.landing-legal { font-size: 11px; color: rgba(255,255,255,0.25); margin-top: 2rem; line-height: 1.6; }
+.landing-legal a { color: rgba(255,255,255,0.4); text-decoration: underline; }
+.landing-legal a:hover { color: rgba(255,255,255,0.7); }
 
 /* ── TRANSPARENCY ── */
 #screen-student-login { align-items: center; justify-content: center; padding: 2rem 1.5rem; background: var(--pt-light); }
