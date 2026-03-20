@@ -350,10 +350,31 @@ function _loadGapiPicker(callback) {
   gapi.load('picker', () => { _gapiPickerReady = true; callback(); });
 }
 
+// Triggers incremental Google OAuth to add drive.readonly scope
+async function requestDriveScope() {
+  try {
+    const { error } = await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        scopes: 'openid email profile https://www.googleapis.com/auth/drive.readonly',
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+      }
+    });
+    if (error) throw error;
+    // Browser will redirect — user returns with Drive token in session
+  } catch(err) {
+    toast(err.message || 'Could not request Drive access.', 'error', 4000);
+  }
+}
+
 async function openDrivePicker(idx) {
   const token = await getGoogleAccessToken();
   if (!token) {
-    toast('Your session does not have Google Drive access. Please sign out and sign in with Google again.', 'warning', 6000);
+    // No Drive token yet — trigger incremental auth
+    if (confirm('PaperTrail Write needs access to your Google Drive to import files.\n\nClick OK to grant access — you\'ll be redirected to Google and brought right back.')) {
+      await requestDriveScope();
+    }
     return;
   }
 
