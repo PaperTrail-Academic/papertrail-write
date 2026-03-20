@@ -313,7 +313,7 @@ async function signInWithGoogle() {
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
-        scopes: 'https://www.googleapis.com/auth/drive.readonly',
+        scopes: 'openid email profile',
       }
     });
     if (error) throw error;
