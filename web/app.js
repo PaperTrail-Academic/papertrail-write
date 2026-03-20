@@ -368,10 +368,29 @@ async function requestDriveScope() {
   }
 }
 
+// Returns true if the current session's provider_token has drive scope
+// We verify by checking sessionStorage flag set after a successful Drive auth
+async function hasDriveScope() {
+  if (sessionStorage.getItem('pt_drive_granted') === '1') return true;
+  // Try a lightweight Drive API call to verify scope
+  const token = await getGoogleAccessToken();
+  if (!token) return false;
+  try {
+    const resp = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (resp.ok) {
+      sessionStorage.setItem('pt_drive_granted', '1');
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
 async function openDrivePicker(idx) {
   const token = await getGoogleAccessToken();
-  if (!token) {
-    // No Drive token yet — trigger incremental auth
+  if (!token || !(await hasDriveScope())) {
+    // No Drive scope yet — trigger incremental auth
     if (confirm('PaperTrail Write needs access to your Google Drive to import files.\n\nClick OK to grant access — you\'ll be redirected to Google and brought right back.')) {
       await requestDriveScope();
     }
