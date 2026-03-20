@@ -399,6 +399,7 @@ async function openDrivePicker(idx) {
       .addView(view)
       .setOAuthToken(token)
       .setOrigin(window.location.origin)
+      .setDeveloperKey('AIzaSyCUPSZI633zWMh_4EdZ9Ih7_MnDxvtBNis')
       .setCallback((data) => _onDriveFilePicked(idx, data, token))
       .build();
 
