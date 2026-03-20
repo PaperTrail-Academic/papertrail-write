@@ -398,6 +398,7 @@ async function openDrivePicker(idx) {
     const picker = new google.picker.PickerBuilder()
       .addView(view)
       .setOAuthToken(token)
+      .setOrigin(window.location.origin)
       .setCallback((data) => _onDriveFilePicked(idx, data, token))
       .build();
 
