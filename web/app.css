@@ -160,7 +160,7 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .auth-screen .back-link:hover { color: rgba(255,255,255,0.7); }
 
 .auth-wordmark { display: flex; align-items: center; gap: 0.5rem; margin-bottom: var(--space-lg); }
-.auth-wordmark-icon { width: 28px; height: 28px; background: var(--pt-write); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+.auth-wordmark-icon { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .auth-wordmark-text { font-family: 'Lora', serif; font-size: var(--text-base); font-weight: 600; color: rgba(255,255,255,0.8); }
 .auth-wordmark-text em { font-style: italic; color: var(--pt-write-l); }
 
@@ -172,7 +172,7 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .landing-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px); background-size: 52px 52px; pointer-events: none; }
 .landing-inner { position: relative; z-index: 1; text-align: center; padding: 2rem 1.5rem; animation: fadeUp 0.5s ease both; }
 .landing-wordmark { display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-bottom: 2rem; }
-.landing-wordmark-icon { width: 36px; height: 36px; background: var(--pt-write); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+.landing-wordmark-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .landing-wordmark-text { font-family: 'Lora', serif; font-size: var(--text-lg); font-weight: 600; color: rgba(255,255,255,0.9); }
 .landing-wordmark-text em { font-style: italic; color: var(--pt-write-l); }
 .landing-title { font-family: 'Lora', serif; font-size: clamp(var(--text-3xl), 5vw, var(--text-4xl)); font-weight: 600; color: #fff; margin-bottom: 0.6rem; line-height: 1.2; }
@@ -269,7 +269,7 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .dash-header { background: var(--pt-ink); color: #fff; padding: 0 var(--space-lg); box-shadow: 0 2px 16px rgba(26,34,53,0.2); flex-shrink: 0; }
 .dash-header-inner { max-width: 1300px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 0; }
 .dash-brand { display: flex; align-items: center; gap: var(--space-sm); }
-.dash-brand-icon { width: 32px; height: 32px; background: var(--pt-write); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+.dash-brand-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .dash-brand-suite { font-size: var(--text-xs); color: rgba(255,255,255,0.35); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; }
 .dash-brand h1 { font-family: 'Lora', serif; font-size: var(--text-xl); font-weight: 600; color: #fff; line-height: 1.2; }
 .dash-main { max-width: 1300px; margin: 0 auto; padding: var(--space-lg); width: 100%; display: grid; grid-template-columns: 340px 1fr; gap: var(--space-lg); align-items: start; }
