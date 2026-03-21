@@ -398,21 +398,17 @@ async function openDrivePicker(idx) {
   }
 
   _loadGapiPicker(() => {
-    const src = STATE.formSources[idx];
-    // Determine which MIME types to allow based on source type
-    const mimeMap = {
-      pdf: ['application/pdf'],
-      image: ['image/jpeg','image/png','image/webp','image/gif'],
-      docx: [
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.google-apps.document', // Google Docs → export as DOCX
-      ],
-    };
-    const mimes = mimeMap[src.type] || mimeMap.pdf;
+    // Show all supported file types — type is inferred from extension after selection
+    const allMimes = [
+      'application/pdf',
+      'image/jpeg','image/png','image/webp','image/gif',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.google-apps.document', // Google Docs → export as DOCX
+    ].join(',');
 
     const view = new google.picker.DocsView()
       .setIncludeFolders(true)
-      .setMimeTypes(mimes.join(','));
+      .setMimeTypes(allMimes);
 
     const picker = new google.picker.PickerBuilder()
       .addView(view)
@@ -1782,44 +1778,20 @@ function renderFormSources() {
   }
 
   list.innerHTML = STATE.formSources.map((src, idx) => {
-    const typeLabels = {text:'Plain Text', pdf:'PDF', image:'Image', docx:'Word Doc'};
-    const typeTabs = ['text','pdf','image','docx'].map(t =>
-      `<button class="source-type-tab ${src.type===t?'active':''}" onclick="selectSourceType(${idx},'${t}')">${typeLabels[t]}</button>`
-    ).join('');
+    const hasFile = src.storage_path || src._file;
+    const fileName = src._file ? src._file.name : (src.storage_path ? src.storage_path.split('/').pop() : '');
+    const fileSize = src._file ? formatBytes(src._file.size) : '';
 
-    let bodyHtml = '';
-    if (src.type === 'text') {
-      bodyHtml = `<textarea class="source-text-input" placeholder="Paste or type source text…" oninput="STATE.formSources[${idx}].text_content=this.value">${esc(src.text_content||'')}</textarea>`;
-    } else {
-      const accept = src.type==='pdf' ? '.pdf' : src.type==='image' ? '.jpg,.jpeg,.png,.webp,.gif' : '.docx';
-      const hasFile = src.storage_path || src._file;
-      const fileName = src._file ? src._file.name : (src.storage_path ? src.storage_path.split('/').pop() : '');
-      const fileSize = src._file ? formatBytes(src._file.size) : '';
-      const driveBtn = isGoogleUser()
-        ? `<button class="btn-drive-picker" onclick="openDrivePicker(${idx})" title="Import from Google Drive">
-            <svg width="14" height="14" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
-            From Google Drive
-          </button>`
-        : '';
-      bodyHtml = `
-        <div class="source-drop-zone ${src._uploading?'drag-over':''}" id="drop-zone-${idx}"
-          ondragover="event.preventDefault();this.classList.add('drag-over')"
-          ondragleave="this.classList.remove('drag-over')"
-          ondrop="event.preventDefault();this.classList.remove('drag-over');handleSourceFileSelect(${idx},event.dataTransfer.files[0])">
-          <input type="file" accept="${accept}" onchange="handleSourceFileSelect(${idx},this.files[0])">
-          <div class="source-drop-zone-label">
-            ${src._uploading
-              ? '<span style="color:var(--pt-write)">Uploading…</span>'
-              : '<strong>Choose file</strong> or drag and drop here'}
-          </div>
-        </div>
-        ${driveBtn}
-        ${hasFile ? `<div class="source-file-pill">
-          <span class="source-file-pill-name">${esc(fileName)}</span>
-          ${fileSize ? `<span class="source-file-pill-size">${fileSize}</span>` : ''}
-          <button class="source-file-remove" onclick="clearSourceFile(${idx})" title="Remove file">✕</button>
-        </div>` : ''}`;
-    }
+    // Drive button — shown for all teachers; non-Google users see a "coming soon" state
+    const driveBtn = isGoogleUser()
+      ? `<button class="btn-drive-picker" onclick="openDrivePicker(${idx})" title="Import from Google Drive">
+          <svg width="14" height="14" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+          From Google Drive
+        </button>`
+      : `<button class="btn-drive-picker btn-drive-coming-soon" title="Sign in with Google to use Drive import" disabled>
+          <svg width="14" height="14" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;opacity:0.4"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+          From Google Drive <span class="drive-coming-soon-badge">Sign in with Google to use</span>
+        </button>`;
 
     return `<div class="source-card" id="source-card-${idx}">
       <div class="source-card-header">
@@ -1829,8 +1801,29 @@ function renderFormSources() {
           oninput="STATE.formSources[${idx}].label=this.value">
         <button class="source-remove-btn" onclick="removeSource(${idx})" title="Remove source">✕</button>
       </div>
-      <div class="source-type-tabs">${typeTabs}</div>
-      <div class="source-body">${bodyHtml}</div>
+      <div class="source-body">
+        <textarea class="source-text-input" placeholder="Paste or type source text…"
+          oninput="STATE.formSources[${idx}].text_content=this.value">${esc(src.text_content||'')}</textarea>
+        <div class="source-file-divider"><span>or attach a file</span></div>
+        <div class="source-drop-zone ${src._uploading?'drag-over':''}" id="drop-zone-${idx}"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="event.preventDefault();this.classList.remove('drag-over');handleSourceFileSelect(${idx},event.dataTransfer.files[0])">
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.docx" onchange="handleSourceFileSelect(${idx},this.files[0])">
+          <div class="source-drop-zone-label">
+            ${src._uploading
+              ? '<span style="color:var(--pt-write)">Uploading…</span>'
+              : '<strong>Choose file</strong> or drag and drop here'}
+          </div>
+        </div>
+        ${driveBtn}
+        <div class="source-file-hint">Accepted: PDF, Word (.docx), Images (JPG, PNG, WEBP)</div>
+        ${hasFile ? `<div class="source-file-pill">
+          <span class="source-file-pill-name">${esc(fileName)}</span>
+          ${fileSize ? `<span class="source-file-pill-size">${fileSize}</span>` : ''}
+          <button class="source-file-remove" onclick="clearSourceFile(${idx})" title="Remove file">✕</button>
+        </div>` : ''}
+      </div>
     </div>`;
   }).join('');
 }
@@ -1858,11 +1851,29 @@ function selectSourceType(idx, type) {
   renderFormSources();
 }
 
+function inferSourceType(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf') return 'pdf';
+  if (['jpg','jpeg','png','webp','gif'].includes(ext)) return 'image';
+  if (ext === 'docx') return 'docx';
+  // fallback: check MIME
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type === 'application/pdf') return 'pdf';
+  return 'docx'; // best guess for unknown
+}
+
 function handleSourceFileSelect(idx, file) {
   if (!file) return;
   const src = STATE.formSources[idx];
   const maxBytes = 20 * 1024 * 1024; // 20MB
   if (file.size > maxBytes) { toast('File must be under 20MB','warning'); return; }
+  // Auto-detect type from file extension — no need for teacher to declare it
+  const inferredType = inferSourceType(file);
+  if (!['pdf','image','docx'].includes(src.type) || src.type === 'text') {
+    src.type = inferredType;
+  } else {
+    src.type = inferredType; // always override with actual file type
+  }
   src._file = file;
   src.storage_path = null; // will be set after upload
   renderFormSources();
