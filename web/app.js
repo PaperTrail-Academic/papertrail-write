@@ -261,12 +261,14 @@ async function teacherSignUp() {
   if(!email||!pw){status.className='status-msg error';status.textContent='Email and password are required.';return;}
   if(pw.length<8){status.className='status-msg error';status.textContent='Password must be at least 8 characters.';return;}
   btn.disabled=true; btn.textContent='Creating account…';
+  status.className='status-msg'; status.textContent='Creating your account — this may take a moment…';
   try {
     const {data,error} = await db.auth.signUp({email,password:pw});
     if(error) throw error;
     if(data.user) {
       await db.from('teachers').update({display_name:name||null,school_name:school||null}).eq('id',data.user.id);
     }
+    status.className='status-msg'; status.textContent='';
     document.getElementById('confirm-email-display').textContent=email;
     showScreen('check-email');
   } catch(err) {
