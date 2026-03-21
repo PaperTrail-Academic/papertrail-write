@@ -215,18 +215,43 @@ async function checkPlanLimit(resource, teacherId) {
     const result = await resp.json();
     if (result.ok) return false;
     const msg = result.message || 'Plan limit reached.';
-    openModal(`<div class="modal-header"><h3>Plan limit reached</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-      <div class="modal-body">${esc(msg)}</div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="closeModal()">Upgrade — coming soon</button>
-      </div>`);
+    openUpgradeModal(msg);
     return true;
   } catch(err) {
     console.warn('check-plan-limits unreachable, failing open:', err.message);
     return false;
   }
 }
+function openUpgradeModal(msg) {
+  const defaultMsg = "You've reached the limit of the free trial (3 sessions).";
+  openModal(`
+    <div class="modal-header">
+      <h3>Upgrade to PaperTrail Write Pro</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--pt-muted);margin-bottom:var(--space-md)">${esc(msg||defaultMsg)}</p>
+      <div style="background:var(--pt-write-pale);border:1.5px solid rgba(123,94,167,0.2);border-radius:var(--radius-md);padding:var(--space-md) var(--space-lg);margin-bottom:var(--space-md)">
+        <div style="display:flex;align-items:baseline;gap:0.4rem;margin-bottom:var(--space-sm)">
+          <span style="font-size:1.75rem;font-weight:700;color:var(--pt-write)">$49</span>
+          <span style="color:var(--pt-muted);font-size:var(--text-sm)">/year</span>
+        </div>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem">
+          <li style="font-size:var(--text-sm);color:var(--pt-ink)">✓ &nbsp;Unlimited sessions</li>
+          <li style="font-size:var(--text-sm);color:var(--pt-ink)">✓ &nbsp;All assignment types (Essay, Document-Based, Source-Based)</li>
+          <li style="font-size:var(--text-sm);color:var(--pt-ink)">✓ &nbsp;Class rosters &amp; time accommodations</li>
+          <li style="font-size:var(--text-sm);color:var(--pt-ink)">✓ &nbsp;Live session monitoring &amp; ZIP export</li>
+          <li style="font-size:var(--text-sm);color:var(--pt-ink)">✓ &nbsp;Google Drive source materials</li>
+        </ul>
+      </div>
+      <p style="font-size:var(--text-xs);color:var(--pt-muted)">Billed annually. Cancel anytime. Secure checkout via Lemon Squeezy.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Not now</button>
+      <a href="https://papertrailacademic.lemonsqueezy.com/checkout/buy/e38d85aa-ca1b-4a9d-afe7-73e4bb80ef2f" target="_blank" class="btn btn-primary" onclick="closeModal()" style="text-decoration:none">Upgrade to Pro →</a>
+    </div>`);
+}
+
 function elapsedSeconds() { if(!STATE.startedAt) return 0; return Math.floor((Date.now()-new Date(STATE.startedAt).getTime())/1000); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatTime(iso) { if(!iso) return '—'; try { return new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return iso; } }
