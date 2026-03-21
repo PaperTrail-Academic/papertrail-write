@@ -1,6 +1,6 @@
 const { createClient } = supabase;
 // Publishable key — safe to be public, security enforced via RLS
-const SUPABASE_URL = 'https://iiviamoigtubkebreolx.supabase.co';
+const SUPABASE_URL = 'https://papertrail-write.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_NZYgi5bfsdWaFaNZ44JSeQ_HNhw2bVp';
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
 const STATE = {
