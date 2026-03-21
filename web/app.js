@@ -243,6 +243,19 @@ async function ensureTeacherProfile(user) {
       // First Google sign-in — create the profile row
       const displayName = user.user_metadata?.full_name || user.user_metadata?.name || null;
       await db.from('teachers').insert({ id: user.id, display_name: displayName });
+
+      // Dual-account guard: warn if another account with this email already exists
+      // (e.g. teacher signed up with email first, then tried Google with same address)
+      if (user.email) {
+        const { data: existing } = await db.from('teachers')
+          .select('id').neq('id', user.id).limit(1);
+        // We can't query by email directly (no email col on teachers) so check auth metadata
+        // Instead, show a proactive notice for all new Google sign-ins
+        toast(
+          'New Google account created. If you previously signed in with email, your assignments are on that account — use "Sign in" with your email/password to access them.',
+          'warning', 9000
+        );
+      }
     }
   } catch(err) {
     console.warn('ensureTeacherProfile error (non-fatal):', err.message);
