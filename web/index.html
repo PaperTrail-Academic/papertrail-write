@@ -309,6 +309,7 @@
         <div class="card-title">Set new password</div>
         <div class="card-subtitle">Choose a new password for your account.</div>
         <form onsubmit="setNewPassword();return false;" autocomplete="on">
+        <input type="text" name="username" autocomplete="username" style="display:none" aria-hidden="true">
         <div class="form-group">
           <label>New Password</label>
           <input class="form-input" id="new-password" type="password" placeholder="At least 8 characters" autocomplete="new-password">
