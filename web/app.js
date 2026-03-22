@@ -159,7 +159,7 @@ function showHelpPopover(btn) {
   popover.innerHTML = `
     <div class="pt-help-title">PaperTrail Write — Help</div>
     <div class="pt-help-body">New to PaperTrail Write? The tutorial video walks through creating a class, opening a session, and reading the process log.</div>
-    <a href="https://youtu.be/pjWJNakONPc" target="_blank" rel="noopener" class="pt-help-video-link">▶ Watch tutorial video</a>
+    <a href="https://youtu.be/Ev3NKk-BX_g" target="_blank" rel="noopener" class="pt-help-video-link">▶ Watch tutorial video</a>
   `;
   document.body.appendChild(popover);
   const rect = btn.getBoundingClientRect();
@@ -1576,7 +1576,7 @@ function renderAssignmentList(assignments) {
           <div class="onboarding-step-desc">Set a title, choose a prompt type, and set a time limit. You'll get a join code when you open a session.</div>
         </div>
       </div>
-      <a href="https://youtu.be/pjWJNakONPc" target="_blank" rel="noopener" class="onboarding-video-link">▶ Watch the tutorial video</a>
+      <a href="https://youtu.be/Ev3NKk-BX_g" target="_blank" rel="noopener" class="onboarding-video-link">▶ Watch the tutorial video</a>
     </div>`;
     return;
   }
