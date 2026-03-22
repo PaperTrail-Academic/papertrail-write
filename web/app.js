@@ -147,6 +147,69 @@ db.auth.onAuthStateChange(async (event, session) => {
 });
 
 // ── SCREEN ROUTER ──
+// ── TOOLTIPS ──
+function showHelpPopover(btn) {
+  // Toggle — close if already open
+  if (document.querySelector('.pt-help-popover')) {
+    document.querySelector('.pt-help-popover').remove();
+    return;
+  }
+  const popover = document.createElement('div');
+  popover.className = 'pt-help-popover';
+  popover.innerHTML = `
+    <div class="pt-help-title">PaperTrail Write — Help</div>
+    <div class="pt-help-body">New to PaperTrail Write? The tutorial video walks through creating a class, opening a session, and reading the process log.</div>
+    <a href="https://youtu.be/pjWJNakONPc" target="_blank" rel="noopener" class="pt-help-video-link">▶ Watch tutorial video</a>
+  `;
+  document.body.appendChild(popover);
+  const rect = btn.getBoundingClientRect();
+  popover.style.position = 'fixed';
+  popover.style.top = (rect.bottom + 8) + 'px';
+  popover.style.right = (window.innerWidth - rect.right) + 'px';
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!popover.contains(e.target) && e.target !== btn) {
+        popover.remove();
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 0);
+}
+function showTooltip(btn, text) {
+  // Close any open tooltip first
+  document.querySelectorAll('.pt-tooltip-popover').forEach(el => el.remove());
+  const popover = document.createElement('div');
+  popover.className = 'pt-tooltip-popover';
+  popover.textContent = text;
+  document.body.appendChild(popover);
+  const rect = btn.getBoundingClientRect();
+  const scrollY = window.scrollY || 0;
+  const scrollX = window.scrollX || 0;
+  // Position below the button, clamped to viewport
+  let top = rect.bottom + scrollY + 6;
+  let left = rect.left + scrollX;
+  popover.style.position = 'absolute';
+  popover.style.top = top + 'px';
+  popover.style.left = left + 'px';
+  // After paint, clamp right edge
+  requestAnimationFrame(() => {
+    const pw = popover.offsetWidth;
+    const vw = window.innerWidth;
+    if (left + pw > vw - 12) {
+      popover.style.left = Math.max(8, vw - pw - 12) + 'px';
+    }
+  });
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!popover.contains(e.target) && e.target !== btn) {
+        popover.remove();
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 0);
+}
+
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const t = document.getElementById('screen-' + name);
@@ -839,7 +902,6 @@ function subscribeToSubmissionTime() {
       const oldPausedAt = payload.old?.student_paused_at;
       if (newPausedAt !== oldPausedAt) {
         if (newPausedAt && !STATE.studentPaused) {
-          // Teacher paused this student
           STATE.studentPaused = true;
           if (STATE.timerInterval) {
             clearInterval(STATE.timerInterval);
@@ -850,7 +912,6 @@ function subscribeToSubmissionTime() {
           }
           triggerPauseBanner();
         } else if (!newPausedAt && STATE.studentPaused) {
-          // Teacher unpaused this student — only resume if session is not also universally paused
           STATE.studentPaused = false;
           const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
           if (!sess || sess.status !== 'paused') {
@@ -1246,7 +1307,6 @@ async function addRosterStudent(classId) {
   const cls = (STATE._classes||[]).find(c => c.id === classId);
   if (!cls) return;
   const roster = [...(cls.student_roster||[])];
-  // Check duplicate
   const exists = roster.some(s => (typeof s==='string'?s:s.name).toLowerCase() === name.toLowerCase());
   if (exists) { toast('That name is already in the roster','warning'); return; }
   const btn = input.nextElementSibling;
@@ -1367,7 +1427,6 @@ async function doAddClassFromForm() {
     STATE._classes = [...(STATE._classes||[]), cls].sort((a,b)=>a.name.localeCompare(b.name));
     renderClassList(STATE._classes, 'class-list', false);
     renderClassList(STATE._classes, 'roster-class-list', true);
-    // Refresh the assignment form selector and auto-select the new class
     refreshClassSelector(STATE._classes);
     const sel = document.getElementById('a-class');
     if (sel) sel.value = cls.id;
@@ -1437,7 +1496,8 @@ async function doEditClass(classId) {
 function showCsvImportModal() {
   openModal(`<div class="modal-header"><h3>Import from CSV</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <p style="margin-bottom:var(--space-md);color:var(--pt-muted);font-size:var(--text-sm)">One name per row. Names will be added to the current roster — existing names are not removed.</p>
+      <p style="margin-bottom:var(--space-sm);color:var(--pt-muted);font-size:var(--text-sm)">One name per row. Names will be added to the current roster — existing names are not removed.</p>
+      <p style="margin-bottom:var(--space-md);font-size:var(--text-xs);color:var(--pt-muted);background:var(--pt-light);border-radius:var(--radius-sm);padding:0.4rem 0.6rem;line-height:1.5">CSV format: one column only — first and last name together in a single field. No headers required. Example: Maya Patel &nbsp;·&nbsp; <a href="#" onclick="event.preventDefault();downloadSampleCsv()" style="color:var(--pt-write);text-decoration:underline">↓ Download sample CSV</a></p>
       <div class="source-drop-zone" style="margin-bottom:var(--space-sm)" id="csv-drop-zone"
         ondragover="event.preventDefault();this.classList.add('drag-over')"
         ondragleave="this.classList.remove('drag-over')"
@@ -1470,6 +1530,15 @@ function handleCsvFile(file) {
   reader.readAsText(file);
 }
 
+function downloadSampleCsv() {
+  const sample = "Maya Patel\nJordan Smith\nAlex Johnson\nSamira Haddad\nLiam O'Brien";
+  const blob = new Blob([sample], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sample-roster.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function doImportCsv() {
   const classId = STATE._selectedClassId;
   if (!classId || !_csvParsed.length) return;
@@ -1488,7 +1557,29 @@ async function doImportCsv() {
 
 function renderAssignmentList(assignments) {
   const el=document.getElementById('assignment-list');
-  if(!assignments.length){el.innerHTML='<div class="empty-panel">No assignments yet. Create one above.</div>';return;}
+  if(!assignments.length){
+    const hasClasses = (STATE._classes||[]).length > 0;
+    el.innerHTML=`<div class="onboarding-card">
+      <div class="onboarding-title">Welcome to PaperTrail Write</div>
+      <div class="onboarding-step ${hasClasses?'onboarding-step-done':''}">
+        <div class="onboarding-step-num">${hasClasses?'✓':'1'}</div>
+        <div class="onboarding-step-body">
+          <div class="onboarding-step-label">Create a class</div>
+          <div class="onboarding-step-desc">Add your students so they can join by name. You can also let students type their name freely — but a roster gives you cleaner reports.</div>
+          ${!hasClasses?`<button class="btn btn-secondary" style="margin-top:0.6rem;font-size:var(--text-sm)" onclick="document.querySelector('[onclick=\"showTab('classes')\"')?.click()">Go to Classes →</button>`:''}
+        </div>
+      </div>
+      <div class="onboarding-step ${!hasClasses?'onboarding-step-disabled':''}">
+        <div class="onboarding-step-num">2</div>
+        <div class="onboarding-step-body">
+          <div class="onboarding-step-label">Create your first assignment</div>
+          <div class="onboarding-step-desc">Set a title, choose a prompt type, and set a time limit. You'll get a join code when you open a session.</div>
+        </div>
+      </div>
+      <a href="https://youtu.be/pjWJNakONPc" target="_blank" rel="noopener" class="onboarding-video-link">▶ Watch the tutorial video</a>
+    </div>`;
+    return;
+  }
   const ptLabels={essay:'Open Writing', document_based:'Document-Based', source_analysis:'Source-Based'};
 
   const active = assignments.filter(a => !a.archived);
@@ -1521,9 +1612,9 @@ function renderAssignmentList(assignments) {
       const ageMs = Date.now() - lastActive;
       const daysLeft = Math.ceil((cutoffMs - ageMs) / 86400000);
       if (daysLeft <= 3 && daysLeft > 0) {
-        purgeWarning = `<div style="margin-top:0.35rem;font-size:var(--text-xs);color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:var(--radius-sm);padding:0.2rem 0.5rem;display:inline-block">⚠ Session data expires in ${daysLeft} day${daysLeft!==1?'s':''} — download report or end session</div>`;
+        purgeWarning = `<div style="margin-top:0.35rem;font-size:var(--text-xs);color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:var(--radius-sm);padding:0.2rem 0.5rem;display:inline-flex;align-items:center;gap:0.4rem">⚠ Session data expires in ${daysLeft} day${daysLeft!==1?'s':''} — download report or end session<button class="pt-tooltip-btn" onclick="event.stopPropagation();showTooltip(this,'Student submission data is stored temporarily. Download the session report before the deadline to preserve it. Ending the session also removes the data immediately.')" title="About data storage">?</button></div>`;
       } else if (daysLeft <= 0) {
-        purgeWarning = `<div style="margin-top:0.35rem;font-size:var(--text-xs);color:#991b1b;background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:0.2rem 0.5rem;display:inline-block">⚠ Session data will be purged tonight — download report now</div>`;
+        purgeWarning = `<div style="margin-top:0.35rem;font-size:var(--text-xs);color:#991b1b;background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:0.2rem 0.5rem;display:inline-flex;align-items:center;gap:0.4rem">⚠ Session data will be purged tonight — download report now<button class="pt-tooltip-btn" onclick="event.stopPropagation();showTooltip(this,'Student submission data is stored temporarily. Download the session report before the deadline to preserve it. Ending the session also removes the data immediately.')" title="About data storage">?</button></div>`;
       }
     }
     const sessionActions = a.archived ? '' : isActive
@@ -1562,7 +1653,7 @@ function renderAssignmentList(assignments) {
       <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
       <div style="margin-top:0.3rem;display:flex;align-items:center;gap:0.5rem">
         ${statusPill}
-        ${(isActive||isPaused)?`<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span>`:''}
+        ${(isActive||isPaused)?`<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span><button class="pt-tooltip-btn" onclick="event.stopPropagation();showTooltip(this,'This is your session\'s unique join code. Students go to write.papertrailacademic.com, enter this code, and they\'re in. A new code is generated every time you open a session.')" title="About join codes">?</button>`:''}
         ${isActive?`<button onclick="event.stopPropagation();projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code in new window" style="background:none;border:none;padding:0.1rem 0.2rem;cursor:pointer;color:var(--pt-muted);font-size:0.9rem;line-height:1;border-radius:3px" onmouseover="this.style.color='var(--pt-write)'" onmouseout="this.style.color='var(--pt-muted)'">⛶</button>`:''}
       </div>
       ${purgeWarning}
@@ -1713,7 +1804,11 @@ function selectPromptType(btn) {
   }
   // Update the add button hint
   const hint = document.getElementById('a-source-max-hint');
-  if (hint) hint.textContent = STATE.selectedPromptType === 'document_based' ? '1 source maximum' : 'Up to 8 sources';
+  if (hint) {
+    hint.textContent = STATE.selectedPromptType === 'document_based' ? '1 source maximum' : 'Up to 8 sources';
+    const docHint = document.getElementById('a-source-docbased-hint');
+    if (docHint) docHint.style.display = STATE.selectedPromptType === 'document_based' ? 'block' : 'none';
+  }
   renderFormSources();
   updateAddSourceBtn();
 }
@@ -2330,7 +2425,6 @@ async function doOpenSession(assignmentId) {
   const classId = document.getElementById('open-session-class')?.value||null;
   const label = document.getElementById('open-session-label')?.value.trim()||null;
   try {
-    // Always generate a fresh code — never reuse the assignment's code
     let code = _mkCode();
     const payload = {
       assignment_id:assignmentId, teacher_id:user.id,
@@ -2340,7 +2434,6 @@ async function doOpenSession(assignmentId) {
     if (classId) payload.class_id = classId;
     if (label) payload.session_label = label;
     let result=await db.from('sessions').insert(payload);
-    // On collision, regenerate a fresh code and retry once
     if(result.error && result.error.code==='23505') {
       code = _mkCode();
       payload.join_code = code;
@@ -2796,7 +2889,7 @@ function renderSubmissionsTable(submissions) {
     wrap.innerHTML = addTimeBtn;
     toolbar.insertBefore(wrap, toolbar.querySelector('#export-btn'));
   }
-  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events</th><th>Time Away</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events <button class="pt-tooltip-btn" onclick="showTooltip(this,'Notable events are: paste events (text pasted into the essay), focus loss (student left the window or switched tabs), and first keystroke timing. All are shown in the process log.')" title="About notable events">?</button></th><th>Time Away</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function toggleSubmissionDetail(subId){STATE.expandedSubId=(STATE.expandedSubId===subId)?null:subId;renderSubmissionsTable(STATE.allSubmissions);}
@@ -2806,7 +2899,7 @@ function renderDetailRow(sub) {
   const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
   const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
   const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
-  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
+  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
 // ── PRINT STUDENT REPORT ──
