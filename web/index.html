@@ -115,9 +115,10 @@
       </div>
     </div>
   </header>
-  <div class="transparency-bar">
+  <div class="transparency-bar" style="position:relative">
     <div class="transparency-bar-dot"></div>
     This session is being documented
+    <button class="pt-tooltip-btn" style="margin-left:0.5rem;opacity:0.7" onclick="showTooltip(this,'Students see this bar throughout their session. It tells them exactly what is being recorded. The transparency notice before writing lists the same information.')" title="About monitoring">?</button>
   </div>
   <div class="pause-banner" id="pause-banner">
     Your teacher has paused this session. This window will lock in <span class="pause-countdown" id="pause-countdown">60</span>s.
@@ -339,6 +340,7 @@
       </div>
       <div style="display:flex;gap:0.6rem;align-items:center">
         <span id="dash-user-email" style="font-size:var(--text-xs);color:rgba(255,255,255,0.4);margin-right:0.25rem;"></span>
+        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="showHelpPopover(this)">? Help</button>
         <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="refreshDashboard()">↻ Refresh</button>
         <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="teacherLogout()">Sign out</button>
       </div>
@@ -383,6 +385,7 @@
                 <div class="sources-header">
                   <span class="sources-header-label">Sources <span id="a-source-count">0 / 8</span></span>
                   <span id="a-source-max-hint" style="font-size:var(--text-xs);color:var(--pt-muted)">Up to 8 sources</span>
+              <div id="a-source-docbased-hint" style="display:none;font-size:var(--text-xs);color:var(--pt-muted);margin-top:0.4rem">Document-Based assignments support one source. Switch to Source-Based for up to 8 sources.</div>
                   <button class="btn btn-secondary" style="font-size:0.7rem;padding:0.3rem 0.75rem" onclick="addSource()" id="a-add-source-btn">+ Add Source</button>
                 </div>
                 <div id="a-sources-list"></div>
