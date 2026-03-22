@@ -1249,8 +1249,11 @@ async function addRosterStudent(classId) {
   // Check duplicate
   const exists = roster.some(s => (typeof s==='string'?s:s.name).toLowerCase() === name.toLowerCase());
   if (exists) { toast('That name is already in the roster','warning'); return; }
+  const btn = input.nextElementSibling;
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
   roster.push({name, extended_minutes: null});
   await saveRoster(classId, roster);
+  if (btn) { btn.disabled = false; btn.textContent = 'Add'; }
   input.value = '';
   input.focus();
 }
@@ -1327,7 +1330,7 @@ function showAddClassModal() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="doAddClass()">Create Class</button>
+      <button class="btn btn-primary" id="add-class-confirm-btn" onclick="doAddClass()">Create Class</button>
     </div>`);
   setTimeout(()=>document.getElementById('new-class-name')?.focus(), 50);
 }
@@ -1344,7 +1347,7 @@ function showAddClassFromForm() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="doAddClassFromForm()">Create Class</button>
+      <button class="btn btn-primary" id="add-class-form-confirm-btn" onclick="doAddClassFromForm()">Create Class</button>
     </div>`);
   setTimeout(()=>document.getElementById('new-class-name')?.focus(), 50);
 }
@@ -1353,8 +1356,10 @@ async function doAddClassFromForm() {
   const {data:{user}} = await db.auth.getUser(); if (!user) return;
   const name = document.getElementById('new-class-name')?.value.trim();
   if (!name) { toast('Please enter a class name','warning'); return; }
+  const btn = document.getElementById('add-class-form-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
   const limited = await checkPlanLimit('class', user.id);
-  if (limited) return;
+  if (limited) { if (btn) { btn.disabled = false; btn.textContent = 'Create Class'; } return; }
   try {
     const {data:cls,error} = await db.from('classes').insert({teacher_id:user.id, name, student_roster:[]}).select().single();
     if (error) throw error;
@@ -1367,7 +1372,10 @@ async function doAddClassFromForm() {
     const sel = document.getElementById('a-class');
     if (sel) sel.value = cls.id;
     toast(`Class "${name}" created and selected`, 'success');
-  } catch(err) { toast('Failed to create class: '+err.message,'error'); }
+  } catch(err) {
+    toast('Failed to create class: '+err.message,'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Class'; }
+  }
 }
 
 function showEditClassModal(classId, currentName) {
@@ -1390,8 +1398,10 @@ async function doAddClass() {
   const {data:{user}} = await db.auth.getUser(); if (!user) return;
   const name = document.getElementById('new-class-name')?.value.trim();
   if (!name) { toast('Please enter a class name','warning'); return; }
+  const btn = document.getElementById('add-class-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
   const limited = await checkPlanLimit('class', user.id);
-  if (limited) return;
+  if (limited) { if (btn) { btn.disabled = false; btn.textContent = 'Create Class'; } return; }
   try {
     const {data:cls,error} = await db.from('classes').insert({teacher_id:user.id, name, student_roster:[]}).select().single();
     if (error) throw error;
@@ -1400,7 +1410,10 @@ async function doAddClass() {
     renderClassList(STATE._classes, 'class-list', false);
     renderClassList(STATE._classes, 'roster-class-list', true);
     toast(`Class "${name}" created`,'success');
-  } catch(err) { toast('Failed to create class: '+err.message,'error'); }
+  } catch(err) {
+    toast('Failed to create class: '+err.message,'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Class'; }
+  }
 }
 
 async function doEditClass(classId) {
@@ -2306,12 +2319,14 @@ async function openSession(assignmentId) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="closeModal();doOpenSession('${assignmentId}')">Open Session →</button>
+      <button class="btn btn-primary" id="open-session-confirm-btn" onclick="doOpenSession('${assignmentId}')">Open Session →</button>
     </div>`);
 }
 
 async function doOpenSession(assignmentId) {
   const {data:{user}}=await db.auth.getUser(); if(!user) return;
+  const btn = document.getElementById('open-session-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
   const classId = document.getElementById('open-session-class')?.value||null;
   const label = document.getElementById('open-session-label')?.value.trim()||null;
   try {
@@ -2332,10 +2347,14 @@ async function doOpenSession(assignmentId) {
       result=await db.from('sessions').insert(payload);
     }
     if(result.error) throw result.error;
+    closeModal();
     toast(`Session opened — join code: ${code}`,'success',5000);
     STATE.selectedAssignmentId = assignmentId;
     await loadDashboard();
-  } catch(err){toast('Failed to open session: '+err.message,'error');}
+  } catch(err){
+    toast('Failed to open session: '+err.message,'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Open Session →'; }
+  }
 }
 
 async function pauseSession(assignmentId,sessionId) {
