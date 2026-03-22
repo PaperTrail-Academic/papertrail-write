@@ -1566,7 +1566,7 @@ function renderAssignmentList(assignments) {
         <div class="onboarding-step-body">
           <div class="onboarding-step-label">Create a class</div>
           <div class="onboarding-step-desc">Add your students so they can join by name. You can also let students type their name freely — but a roster gives you cleaner reports.</div>
-          ${!hasClasses?`<button class="btn btn-secondary" style="margin-top:0.6rem;font-size:var(--text-sm)" onclick="document.querySelector('[onclick=\"showTab('classes')\"')?.click()">Go to Classes →</button>`:''}
+          ${!hasClasses?'<button class="btn btn-secondary" style="margin-top:0.6rem;font-size:var(--text-sm)" onclick="showScreen(\'roster\')">Go to Classes →</button>':'' }
         </div>
       </div>
       <div class="onboarding-step ${!hasClasses?'onboarding-step-disabled':''}">
