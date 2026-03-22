@@ -22,6 +22,7 @@ const STATE = {
   _realtimePollInterval: null,
   pauseCountdownInterval: null,
   frozenRemaining: null,
+  studentPaused: false,
   isPreview: false,
   editingAssignmentId: null,
   selectedPromptType: 'essay',
@@ -826,11 +827,36 @@ function subscribeToSubmissionTime() {
   if (!STATE.submissionId || !STATE.timeLimitSeconds) return;
   const ch = db.channel('submission-time-' + STATE.submissionId)
     .on('postgres_changes', {event:'UPDATE', schema:'public', table:'submissions', filter:`id=eq.${STATE.submissionId}`}, (payload) => {
+      // Per-student extra time
       const newExtra = payload.new?.extra_minutes;
       const oldExtra = payload.old?.extra_minutes;
       if (newExtra != null && newExtra !== oldExtra) {
         const addedSecs = (newExtra - (oldExtra || 0)) * 60;
         if (addedSecs > 0) applyExtraTime(addedSecs);
+      }
+      // Per-student pause/unpause
+      const newPausedAt = payload.new?.student_paused_at;
+      const oldPausedAt = payload.old?.student_paused_at;
+      if (newPausedAt !== oldPausedAt) {
+        if (newPausedAt && !STATE.studentPaused) {
+          // Teacher paused this student
+          STATE.studentPaused = true;
+          if (STATE.timerInterval) {
+            clearInterval(STATE.timerInterval);
+            STATE.timerInterval = null;
+            STATE.frozenRemaining = STATE.timeLimitSeconds
+              ? Math.max(0, STATE.timeLimitSeconds - elapsedSeconds())
+              : null;
+          }
+          triggerPauseBanner();
+        } else if (!newPausedAt && STATE.studentPaused) {
+          // Teacher unpaused this student — only resume if session is not also universally paused
+          STATE.studentPaused = false;
+          const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
+          if (!sess || sess.status !== 'paused') {
+            resumeFromPause();
+          }
+        }
       }
     })
     .subscribe();
@@ -2483,6 +2509,41 @@ async function confirmAddTimePerStudent(subId) {
   } catch(err) { toast('Failed to add time: ' + err.message, 'error'); }
 }
 
+async function pauseStudent(subId, displayName) {
+  openModal(`
+    <div class="modal-header">
+      <h3>Pause — ${esc(displayName)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:var(--text-sm);color:var(--pt-muted)">This student's timer will freeze immediately. They'll see a pause notice and their work will be saved. You can resume them at any time.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal();confirmPauseStudent('${subId}')">Pause Student</button>
+    </div>`);
+}
+
+async function confirmPauseStudent(subId) {
+  try {
+    const { error } = await db.from('submissions').update({ student_paused_at: new Date().toISOString() }).eq('id', subId);
+    if (error) throw error;
+    toast('Student paused — their timer is frozen', 'success', 3000);
+    const { data: subs } = await db.from('submissions').select('*').eq('session_id', STATE.selectedSessionId);
+    if (subs) { STATE.allSubmissions = subs; renderSubmissionsTable(subs); }
+  } catch(err) { toast('Failed to pause student: ' + err.message, 'error'); }
+}
+
+async function unpauseStudent(subId, displayName) {
+  try {
+    const { error } = await db.from('submissions').update({ student_paused_at: null }).eq('id', subId);
+    if (error) throw error;
+    toast(`${displayName} resumed`, 'success', 3000);
+    const { data: subs } = await db.from('submissions').select('*').eq('session_id', STATE.selectedSessionId);
+    if (subs) { STATE.allSubmissions = subs; renderSubmissionsTable(subs); }
+  } catch(err) { toast('Failed to resume student: ' + err.message, 'error'); }
+}
+
 async function reopenSession(assignmentId,sessionId) {
   try {
     const {error}=await db.from('sessions').update({status:'active',paused_at:null}).eq('id',sessionId);
@@ -2693,7 +2754,13 @@ function renderSubmissionsTable(submissions) {
     const perStudentTimeCell = (liveSession && !s.is_submitted)
       ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid var(--pt-write);background:var(--pt-write-pale);color:var(--pt-write);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="openAddTimePerStudent('${s.id}','${esc(s.student_display_name)}')">＋ Time</button></td>`
       : `<td></td>`;
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${resubmitCell}${perStudentTimeCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    const isStudentPaused = !!s.student_paused_at;
+    const perStudentPauseCell = (liveSession && !s.is_submitted)
+      ? isStudentPaused
+        ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid #b45309;background:#fff8f0;color:#b45309;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="unpauseStudent('${s.id}','${esc(s.student_display_name)}')">▶ Resume</button></td>`
+        : `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid var(--pt-muted);background:var(--pt-bg);color:var(--pt-text);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="pauseStudent('${s.id}','${esc(s.student_display_name)}')">⏸ Pause</button></td>`
+      : `<td></td>`;
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   // Show Add Time button in toolbar only when session is active or paused
   const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
@@ -2710,7 +2777,7 @@ function renderSubmissionsTable(submissions) {
     wrap.innerHTML = addTimeBtn;
     toolbar.insertBefore(wrap, toolbar.querySelector('#export-btn'));
   }
-  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events</th><th>Time Away</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events</th><th>Time Away</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function toggleSubmissionDetail(subId){STATE.expandedSubId=(STATE.expandedSubId===subId)?null:subId;renderSubmissionsTable(STATE.allSubmissions);}
@@ -2720,7 +2787,7 @@ function renderDetailRow(sub) {
   const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
   const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
   const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
-  return `<tr class="detail-row"><td class="detail-cell" colspan="9"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
+  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log</div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
 // ── PRINT STUDENT REPORT ──
