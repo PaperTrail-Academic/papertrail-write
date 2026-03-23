@@ -22,6 +22,8 @@ const STATE = {
   _realtimePollInterval: null,
   pauseCountdownInterval: null,
   frozenRemaining: null,
+  _sessionPollInterval: null,
+  _lastKnownSessionExtra: null,
   studentPaused: false,
   isPreview: false,
   editingAssignmentId: null,
@@ -740,13 +742,12 @@ async function studentLogin() {
       STATE.processLog=existing.process_log||[]; STATE.isSubmitted=false;
       STATE._resumeText=existing.essay_text||'';
     } else {
-      const now=new Date().toISOString();
       const {data:newSub,error:nErr}=await db.from('submissions').insert({
         session_id:session.id,
         assignment_id:assignment.id,
         teacher_id:assignment.teacher_id,
         student_display_name:name,class_period:period,
-        essay_text:'',word_count:0,process_log:[],started_at:now,is_submitted:false,
+        essay_text:'',word_count:0,process_log:[],is_submitted:false,
       }).select().single();
       if(nErr) throw nErr;
       STATE.submissionId=newSub.id; STATE.assignmentId=assignment.id;
@@ -754,7 +755,9 @@ async function studentLogin() {
       STATE.assignmentPromptText=assignment.prompt_text||'';
       STATE.assignmentPromptType=assignment.prompt_type||'essay';
       STATE.assignmentAllowSpellcheck=assignment.allow_spellcheck||false;
-      STATE.studentName=name; STATE.period=period; STATE.startedAt=now;
+      STATE.studentName=name; STATE.period=period;
+      // Use the DB-returned started_at as the authoritative timestamp — avoids client clock skew
+      STATE.startedAt=newSub.started_at||newSub.created_at;
       STATE.processLog=[]; STATE.isSubmitted=false;
     }
     // Load sources for this assignment
@@ -824,6 +827,9 @@ function enterWritingMode(savedText) {
   else document.getElementById('timer-display').textContent = '∞';
   STATE.autosaveInterval=setInterval(autosave,30000);
   STATE.burstCheckInterval=setInterval(checkBurstAndIdle,3000);
+  // Realtime fallback: poll session status every 30s in case Realtime drops on student side
+  STATE._lastKnownSessionExtra = null;
+  if (STATE.sessionId && !STATE.isPreview) STATE._sessionPollInterval = setInterval(pollSessionStatus, 30000);
   attachProcessListeners(editor);
   STATE._visibilityHandler=()=>{
     if(document.hidden){STATE._blurStartTime=Date.now();logEventImmediate('window_blur',{content_preview:'Window left focus'});}
@@ -922,6 +928,58 @@ function subscribeToSubmissionTime() {
     })
     .subscribe();
   STATE._submissionTimeChannel = ch;
+}
+
+// ── STUDENT-SIDE SESSION POLL FALLBACK ──
+// Runs every 30s as a safety net in case Supabase Realtime drops on the student side.
+// Checks session status and global extra_minutes — acts only if something has changed.
+async function pollSessionStatus() {
+  if (!STATE.sessionId || STATE.isSubmitted) return;
+  try {
+    const {data:sess} = await db.from('sessions')
+      .select('status, extra_minutes')
+      .eq('id', STATE.sessionId)
+      .maybeSingle();
+    if (!sess) return; // session ended or deleted — autosave will handle gracefully
+
+    // Initialise baseline on first poll
+    if (STATE._lastKnownSessionExtra === null) {
+      STATE._lastKnownSessionExtra = sess.extra_minutes || 0;
+    }
+
+    // Pause fallback — if session is paused but banner isn't showing, trigger it
+    const banner = document.getElementById('pause-banner');
+    const bannerVisible = banner && banner.classList.contains('visible');
+    if (sess.status === 'paused' && !bannerVisible && !STATE.studentPaused) {
+      // Freeze timer if still running
+      if (STATE.timerInterval) {
+        clearInterval(STATE.timerInterval);
+        STATE.timerInterval = null;
+        STATE.frozenRemaining = STATE.timeLimitSeconds
+          ? Math.max(0, STATE.timeLimitSeconds - elapsedSeconds())
+          : null;
+      }
+      triggerPauseBanner();
+    }
+
+    // Unpause fallback — if session is active but banner is still showing (missed unpause event)
+    if (sess.status === 'active' && bannerVisible && !STATE.studentPaused) {
+      resumeFromPause();
+    }
+
+    // Extra time fallback — if global extra_minutes changed and Realtime missed it
+    if (STATE.timeLimitSeconds) {
+      const knownExtra = STATE._lastKnownSessionExtra;
+      const freshExtra = sess.extra_minutes || 0;
+      if (freshExtra > knownExtra) {
+        const addedSecs = (freshExtra - knownExtra) * 60;
+        STATE._lastKnownSessionExtra = freshExtra;
+        applyExtraTime(addedSecs);
+      }
+    }
+  } catch(err) {
+    // Fail silently — this is a fallback, not the primary path
+  }
 }
 
 function applyExtraTime(addedSecs) {
@@ -1102,6 +1160,7 @@ async function submitEssay(isAuto=false) {
   if(STATE.isSubmitted) return;
   STATE.isSubmitted=true;
   clearInterval(STATE.timerInterval); clearInterval(STATE.autosaveInterval); clearInterval(STATE.burstCheckInterval);
+  if(STATE._sessionPollInterval){clearInterval(STATE._sessionPollInterval);STATE._sessionPollInterval=null;}
   STATE.idleLogged = false;
   if(STATE._visibilityHandler) document.removeEventListener('visibilitychange',STATE._visibilityHandler);
   if(STATE._blurHandler) window.removeEventListener('blur',STATE._blurHandler);
