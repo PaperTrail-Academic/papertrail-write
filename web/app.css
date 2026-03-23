@@ -110,6 +110,7 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .status-msg.error   { background: #fdecea; border: 1px solid #f5b7b1; color: var(--danger); display: block; }
 .status-msg.success { background: #eaf5ef; border: 1px solid #a9d9be; color: var(--success); display: block; }
 .status-msg.info    { background: var(--pt-write-pale); border: 1px solid rgba(123,94,167,0.25); color: var(--pt-write-d); display: block; }
+.status-msg.warning { background: #fff8e1; border: 1px solid #f0c040; color: #7a4f00; display: block; }
 
 .disclaimer { background: var(--pt-light); border-left: 3px solid var(--pt-muted); border-radius: 0 var(--radius-md) var(--radius-md) 0; padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); color: var(--pt-muted); line-height: 1.6; }
 .divider { border: none; border-top: 1px solid var(--pt-border); margin: var(--space-lg) 0; }
@@ -219,6 +220,7 @@ body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--pt-light
 .autosave-indicator { font-size: var(--text-xs); color: rgba(255,255,255,0.3); }
 .autosave-indicator.saving { color: #f0c040; animation: pulse 1s infinite; }
 .autosave-indicator.saved  { color: #6dce8e; }
+.autosave-indicator.error  { color: #f87171; font-weight: 600; }
 .transparency-bar { background: rgba(123,94,167,0.15); border-bottom: 1px solid rgba(123,94,167,0.2); padding: 0.35rem var(--space-lg); font-size: var(--text-xs); color: var(--pt-write-l); font-weight: 500; letter-spacing: 0.04em; display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
 .transparency-bar-dot { width: 6px; height: 6px; background: var(--pt-write-l); border-radius: 50%; animation: pulse 2s infinite; }
 .writing-main { flex: 1; display: flex; flex-direction: column; max-width: 900px; width: 100%; margin: 0 auto; padding: var(--space-lg); min-height: 0; overflow-y: auto; }
