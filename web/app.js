@@ -1155,6 +1155,7 @@ async function loadDashboard() {
     if(aErr) throw aErr;
     if(sErr) throw sErr;
     STATE._classes = classes||[];
+    STATE._assignments = assignments||[];
     const sessionsByAssignment={};
     const hasEverRun={};
     (sessions||[]).forEach(s=>{
@@ -2658,7 +2659,14 @@ async function unpauseStudent(subId, displayName) {
 
 async function reopenSession(assignmentId,sessionId) {
   try {
-    const {error}=await db.from('sessions').update({status:'active',paused_at:null}).eq('id',sessionId);
+    // Accumulate pause duration into paused_seconds before clearing paused_at
+    const {data:sess, error:sErr} = await db.from('sessions').select('paused_at, paused_seconds').eq('id',sessionId).single();
+    if(sErr) throw sErr;
+    const addedPauseSecs = sess.paused_at
+      ? Math.round((Date.now() - new Date(sess.paused_at).getTime()) / 1000)
+      : 0;
+    const newPausedSeconds = (sess.paused_seconds || 0) + addedPauseSecs;
+    const {error}=await db.from('sessions').update({status:'active', paused_at:null, paused_seconds: newPausedSeconds}).eq('id',sessionId);
     if(error) throw error;
     toast('Session reopened','success',3000); loadDashboard();
   } catch(err){toast('Failed to reopen: '+err.message,'error');}
@@ -2762,7 +2770,7 @@ async function loadSubmissions(assignmentId) {
   try {
     // Fetch ALL sessions for this assignment, newest first
     const {data:sessions, error:sErr} = await db.from('sessions')
-      .select('id, status, join_code, started_at, ended_at, class_id, session_label')
+      .select('id, status, join_code, started_at, ended_at, class_id, session_label, paused_seconds, paused_at, extra_minutes')
       .eq('assignment_id', assignmentId)
       .order('started_at', {ascending: false});
     if (sErr) throw sErr;
@@ -2847,6 +2855,34 @@ async function switchSession(assignmentId, sessionId) {
   document.getElementById('export-btn').disabled = !data||!data.length;
 }
 
+// Compute time remaining (seconds) for a student from the teacher dashboard perspective.
+// Returns null if no time limit, or the student has submitted.
+function calcStudentTimeRemaining(sub, sess, timeLimitMinutes) {
+  if (!timeLimitMinutes || sub.is_submitted) return null;
+  const totalSecs = (timeLimitMinutes * 60)
+    + ((sess.extra_minutes || 0) * 60)
+    + ((sub.extra_minutes || 0) * 60);
+  const joinedAt = new Date(sub.created_at).getTime();
+  const elapsedSecs = Math.floor((Date.now() - joinedAt) / 1000);
+  // paused_seconds = total past pause wall-time (already committed)
+  let pauseOffset = sess.paused_seconds || 0;
+  // If session is currently paused, add time since paused_at
+  if (sess.status === 'paused' && sess.paused_at) {
+    pauseOffset += Math.floor((Date.now() - new Date(sess.paused_at).getTime()) / 1000);
+  }
+  // If student is individually paused, add time since student_paused_at
+  if (sub.student_paused_at) {
+    pauseOffset += Math.floor((Date.now() - new Date(sub.student_paused_at).getTime()) / 1000);
+  }
+  return Math.max(0, totalSecs - elapsedSecs + pauseOffset);
+}
+
+function formatTimeRemaining(secs) {
+  if (secs === null) return '∞';
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
 function renderSubmissionsTable(submissions) {
   const countEl=document.getElementById('sub-count'),wrapEl=document.getElementById('submissions-table-wrap');
   if(!submissions.length){countEl.textContent='No submissions yet.';wrapEl.innerHTML='<div class="empty-panel" style="padding:3rem">No submissions yet for this session.</div>';return;}
@@ -2872,7 +2908,22 @@ function renderSubmissionsTable(submissions) {
         ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid #b45309;background:#fff8f0;color:#b45309;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="unpauseStudent('${s.id}','${esc(s.student_display_name)}')">▶ Resume</button></td>`
         : `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid var(--pt-muted);background:var(--pt-bg);color:var(--pt-text);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="pauseStudent('${s.id}','${esc(s.student_display_name)}')">⏸ Pause</button></td>`
       : `<td></td>`;
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    // Time remaining cell
+    const sessForTime = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
+    const assignmentForTime = STATE._assignments && STATE._assignments.find(a => a.id === STATE.selectedAssignmentId);
+    const timeLimitMins = assignmentForTime ? assignmentForTime.time_limit_minutes : null;
+    let timeRemainingCell = '<td></td>';
+    if (sessForTime && timeLimitMins && !s.is_submitted) {
+      const remSecs = calcStudentTimeRemaining(s, sessForTime, timeLimitMins);
+      const remStr = formatTimeRemaining(remSecs);
+      const colorStyle = remSecs <= 180 ? 'color:#c0392b;font-weight:600' : remSecs <= 600 ? 'color:#b45309;font-weight:600' : 'color:var(--pt-ink)';
+      timeRemainingCell = `<td style="font-family:'DM Mono',monospace;font-size:var(--text-xs);${colorStyle}">${remStr}</td>`;
+    } else if (s.is_submitted) {
+      timeRemainingCell = `<td style="font-size:var(--text-xs);color:var(--pt-muted)">—</td>`;
+    } else if (!timeLimitMins) {
+      timeRemainingCell = `<td style="font-size:var(--text-xs);color:var(--pt-muted)">∞</td>`;
+    }
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   // Show Add Time button in toolbar only when session is active or paused
   const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
@@ -2889,7 +2940,7 @@ function renderSubmissionsTable(submissions) {
     wrap.innerHTML = addTimeBtn;
     toolbar.insertBefore(wrap, toolbar.querySelector('#export-btn'));
   }
-  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events <button class="pt-tooltip-btn" onclick="showTooltip(this,'Notable events are: paste events (text pasted into the essay), focus loss (student left the window or switched tabs), and first keystroke timing. All are shown in the process log.')" title="About notable events">?</button></th><th>Time Away</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events <button class="pt-tooltip-btn" onclick="showTooltip(this,'Notable events are: paste events (text pasted into the essay), focus loss (student left the window or switched tabs), and first keystroke timing. All are shown in the process log.')" title="About notable events">?</button></th><th>Time Away</th><th>Time Left</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function toggleSubmissionDetail(subId){STATE.expandedSubId=(STATE.expandedSubId===subId)?null:subId;renderSubmissionsTable(STATE.allSubmissions);}
