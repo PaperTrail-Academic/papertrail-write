@@ -2536,9 +2536,21 @@ function subscribeToLiveSession(sessionId) {
   doSubscribe();
 
   // Polling fallback: re-fetch submissions every 15s regardless of realtime status
-  // This ensures the teacher always sees current data even if realtime drops
-  STATE._realtimePollInterval = setInterval(()=>{
-    if(STATE.selectedAssignmentId) loadSubmissions(STATE.selectedAssignmentId);
+  // This ensures the teacher always sees current data even if realtime drops.
+  // Also refreshes the session row in _lastSessions so paused_seconds/paused_at stay accurate
+  // for the Time Left column (avoids stale values between loadDashboard() calls).
+  STATE._realtimePollInterval = setInterval(async ()=>{
+    if(!STATE.selectedAssignmentId) return;
+    // Refresh session row for the current assignment into _lastSessions
+    const liveSess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
+    if(liveSess && liveSess.id) {
+      const {data:freshSess} = await db.from('sessions')
+        .select('id, status, join_code, started_at, ended_at, class_id, session_label, paused_seconds, paused_at, extra_minutes, last_active_at')
+        .eq('id', liveSess.id)
+        .maybeSingle();
+      if(freshSess) STATE._lastSessions[STATE.selectedAssignmentId] = freshSess;
+    }
+    loadSubmissions(STATE.selectedAssignmentId);
   }, 15000);
 }
 
