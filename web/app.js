@@ -29,6 +29,7 @@ const STATE = {
   editingAssignmentId: null,
   selectedPromptType: 'essay',
   idleLogged: false,
+  _pendingResume: null,
   // Sources
   formSources: [],         // [{id, label, type, text_content, storage_path, storage_url, _file, _uploading}] in teacher form
   studentSources: [],      // Loaded at join time for student rendering
@@ -731,16 +732,26 @@ async function studentLogin() {
     STATE.sessionId=session.id;
     if(existing) {
       if(existing.is_submitted){loadSubmittedScreen(existing);showScreen('submitted');return;}
-      STATE.submissionId=existing.id; STATE.assignmentId=assignment.id;
-      STATE.assignmentTitle=assignment.title;
-      // Fold in any per-student extra time already granted
-      STATE.timeLimitSeconds = effectiveSeconds + ((existing.extra_minutes||0) * 60);
-      STATE.assignmentPromptText=assignment.prompt_text||'';
-      STATE.assignmentPromptType=assignment.prompt_type||'essay';
-      STATE.assignmentAllowSpellcheck=assignment.allow_spellcheck||false;
-      STATE.studentName=name; STATE.period=period; STATE.startedAt=existing.started_at;
-      STATE.processLog=existing.process_log||[]; STATE.isSubmitted=false;
-      STATE._resumeText=existing.essay_text||'';
+
+      // Collision check — if this submission has content or was started >60s ago,
+      // it may belong to a different student with the same name. Warn before resuming.
+      const ageSeconds = Math.floor((Date.now() - new Date(existing.started_at).getTime()) / 1000);
+      const hasContent = (existing.essay_text||'').length > 0 || (existing.word_count||0) > 0;
+      if (hasContent || ageSeconds > 60) {
+        // Store everything needed to resume if they confirm identity
+        STATE._pendingResume = { existing, assignment, effectiveSeconds, name, period, session };
+        statusEl.className = 'status-msg warning';
+        statusEl.innerHTML = `<strong>Someone is already writing under this name.</strong><br>
+          If that's you on another device, tap <em>Continue as ${esc(name)}</em>.<br>
+          If you're a different student, please go back and use a slightly different name (e.g. "${esc(name)} 2").`;
+        btn.textContent = `Continue as ${esc(name)} →`;
+        btn.disabled = false;
+        btn.onclick = () => resumeAfterCollisionConfirm();
+        return;
+      }
+
+      // No collision risk — resume normally
+      applyResumeState(existing, assignment, effectiveSeconds, name, period);
     } else {
       const {data:newSub,error:nErr}=await db.from('submissions').insert({
         session_id:session.id,
@@ -765,6 +776,39 @@ async function studentLogin() {
     showScreen('transparency');
   } catch(err) {
     statusEl.className='status-msg error'; statusEl.textContent='Something went wrong: '+err.message;
+  } finally { btn.disabled=false; btn.textContent='Continue →'; btn.onclick=()=>studentLoginStep(); }
+}
+
+// Applies a resume-from-existing-submission state to STATE (shared by normal resume and collision-confirmed resume)
+function applyResumeState(existing, assignment, effectiveSeconds, name, period) {
+  STATE.submissionId=existing.id; STATE.assignmentId=assignment.id;
+  STATE.assignmentTitle=assignment.title;
+  STATE.timeLimitSeconds = effectiveSeconds + ((existing.extra_minutes||0) * 60);
+  STATE.assignmentPromptText=assignment.prompt_text||'';
+  STATE.assignmentPromptType=assignment.prompt_type||'essay';
+  STATE.assignmentAllowSpellcheck=assignment.allow_spellcheck||false;
+  STATE.studentName=name; STATE.period=period; STATE.startedAt=existing.started_at;
+  STATE.processLog=existing.process_log||[]; STATE.isSubmitted=false;
+  STATE._resumeText=existing.essay_text||'';
+}
+
+// Called when student confirms they are the same person despite the collision warning
+async function resumeAfterCollisionConfirm() {
+  const p = STATE._pendingResume;
+  if (!p) return;
+  STATE._pendingResume = null;
+  const statusEl = document.getElementById('s-status');
+  const btn = document.getElementById('s-login-btn');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  // Restore normal onclick
+  btn.onclick = () => studentLoginStep();
+  try {
+    applyResumeState(p.existing, p.assignment, p.effectiveSeconds, p.name, p.period);
+    STATE.sessionId = p.session.id;
+    await loadSources(p.assignment.id);
+    showScreen('transparency');
+  } catch(err) {
+    if(statusEl){statusEl.className='status-msg error';statusEl.textContent='Something went wrong: '+err.message;}
   } finally { btn.disabled=false; btn.textContent='Continue →'; }
 }
 
@@ -1092,7 +1136,7 @@ async function autosave() {
     if(ind){ind.className='autosave-indicator saved';ind.textContent='Saved ✓';setTimeout(()=>{if(ind){ind.className='autosave-indicator';ind.textContent='Autosave active';}},2000);}
   } catch(err) {
     console.error('Autosave failed:',err);
-    if(ind){ind.className='autosave-indicator';ind.textContent='Save failed — retrying…';}
+    if(ind){ind.className='autosave-indicator error';ind.textContent='⚠ Not saved — check connection';}
   }
 }
 async function manualSave(){await autosave();toast('Saved','success',1500);}
@@ -2959,6 +3003,10 @@ function renderSubmissionsTable(submissions) {
   if(!submissions.length){countEl.textContent='No submissions yet.';wrapEl.innerHTML='<div class="empty-panel" style="padding:3rem">No submissions yet for this session.</div>';return;}
   const submitted=submissions.filter(s=>s.is_submitted).length;
   countEl.textContent=`${submissions.length} student${submissions.length!==1?'s':''} · ${submitted} submitted`;
+  // Build a set of names that appear more than once — used to flag duplicate rows
+  const nameCounts={};
+  submissions.forEach(s=>{ const n=s.student_display_name||''; nameCounts[n]=(nameCounts[n]||0)+1; });
+  const duplicateNames=new Set(Object.keys(nameCounts).filter(n=>nameCounts[n]>1));
   const rows=submissions.map(s=>{
     const log=s.process_log||[];
     const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
@@ -2994,7 +3042,8 @@ function renderSubmissionsTable(submissions) {
     } else if (!timeLimitMins) {
       timeRemainingCell = `<td style="font-size:var(--text-xs);color:var(--pt-muted)">∞</td>`;
     }
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong></td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    const dupBadge = duplicateNames.has(s.student_display_name||'') ? ' <span style="font-size:10px;font-weight:600;color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:3px;padding:0.1rem 0.35rem;vertical-align:middle">⚠ duplicate name</span>' : '';
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong>${dupBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   // Show Add Time button in toolbar only when session is active or paused
   const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
