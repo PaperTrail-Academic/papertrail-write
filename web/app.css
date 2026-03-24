@@ -736,13 +736,14 @@ tbody td { padding: 0.7rem var(--space-md); vertical-align: middle; }
   line-height: 1.2;
 }
 
-/* Status pill + join code shown in header when expanded */
+/* Status pill + join code — own row below title when expanded */
 .asgn-header-status {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  flex-shrink: 0;
-  margin-left: auto;
+  flex-wrap: wrap;
+  padding-left: 1.6rem; /* align under title, past chevron */
+  margin-top: 0.35rem;
 }
 
 /* Fully collapsed card */
