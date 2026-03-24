@@ -2924,7 +2924,7 @@ async function doEndAssignment(assignmentId,sessionId) {
 }
 
 async function deleteAssignment(id,title) {
-  openModal(`<div class="modal-header"><h3>Delete assignment?</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">This will permanently delete <strong>${esc(title)}</strong>. Only draft assignments (no active session) can be deleted.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="closeModal();doDeleteAssignment('${id}')">Delete Permanently</button></div>`);
+  openModal(`<div class="modal-header"><h3>Delete assignment?</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">This will permanently delete <strong>${esc(title)}</strong> and cannot be undone.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="closeModal();doDeleteAssignment('${id}')">Delete Permanently</button></div>`);
 }
 async function doDeleteAssignment(id) {
   try {
