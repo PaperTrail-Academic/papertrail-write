@@ -14,6 +14,7 @@ const STATE = {
   pendingBurstChars: 0, burstCheckInterval: null,
   _visibilityHandler: null, _blurHandler: null, _focusHandler: null, _beforeUnloadHandler: null,
   selectedAssignmentId: null, allSubmissions: [], expandedSubId: null,
+  _expandedAssignments: new Set(),
   selectedSessionId: null,
   _archiveOpen: false,
   _newAssignmentOpen: true,
@@ -1274,6 +1275,7 @@ async function loadDashboard() {
       _joinCode: sessionsByAssignment[a.id]?.join_code||a.join_code||'—',
     }));
     renderAssignmentList(merged);
+    renderSessionTabs();
     renderClassList(classes||[], 'class-list', false);
     refreshClassSelector(classes||[]);
     if(STATE.selectedAssignmentId) {
@@ -1689,11 +1691,22 @@ function renderAssignmentList(assignments) {
   const active = assignments.filter(a => !a.archived);
   const archived = assignments.filter(a => a.archived);
 
+  // Auto-expand active/paused assignments; leave others at their current state
+  // (collapsed by default for assignments that have never been expanded)
+  assignments.forEach(a => {
+    if (a._status === 'active' || a._status === 'paused') {
+      STATE._expandedAssignments.add(a.id);
+    }
+  });
+
   const renderCard = (a) => {
     const isActive=a._status==='active';
     const isPaused=a._status==='paused';
     const isInactive=a._status==='inactive';
     const sessionId=a._session?.id||null;
+    const isExpanded = STATE._expandedAssignments.has(a.id);
+    const isSelected = STATE.selectedAssignmentId===a.id;
+
     const statusPill=isActive
       ?`<span class="pill pill-active">Active</span>`
       :isPaused
@@ -1707,7 +1720,35 @@ function renderAssignmentList(assignments) {
     const className = a.class_id ? ((STATE._classes||[]).find(c=>c.id===a.class_id)?.name||'') : '';
     const classPart = className ? ` · ${esc(className)}` : '';
 
-    // Purge warning — show amber notice when session data is approaching auto-purge
+    // Join code pill (shown in both collapsed and expanded)
+    const joinCodePill = (isActive||isPaused)
+      ? `<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span><button class="pt-tooltip-btn" onclick="event.stopPropagation();showTooltip(this,'This is your session\'s unique join code. Students go to write.papertrailacademic.com, enter this code, and they\'re in. A new code is generated every time you open a session.')" title="About join codes">?</button>`
+      : '';
+    const projectorBtn = isActive
+      ? `<button onclick="event.stopPropagation();projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code in new window" style="background:none;border:none;padding:0.1rem 0.2rem;cursor:pointer;color:var(--pt-muted);font-size:0.9rem;line-height:1;border-radius:3px" onmouseover="this.style.color='var(--pt-write)'" onmouseout="this.style.color='var(--pt-muted)'">⛶</button>`
+      : '';
+
+    // ── Collapsed header (always visible) ──
+    const collapsedHeader = `<div class="asgn-collapsed-header" onclick="toggleAssignmentExpand('${a.id}')">
+      <div class="asgn-collapsed-left">
+        <span class="asgn-chevron">${isExpanded?'▾':'▸'}</span>
+        <span class="asgn-collapsed-title">${esc(a.title)}</span>
+      </div>
+      <div class="asgn-collapsed-right">
+        <span class="asgn-collapsed-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</span>
+        ${statusPill}
+        ${joinCodePill}
+        ${projectorBtn}
+      </div>
+    </div>`;
+
+    if (!isExpanded) {
+      return `<div class="assignment-item ${isActive?'active-assignment':''} ${isSelected?'selected':''} ${a.archived?'archived-assignment':''} asgn-collapsed">
+        ${collapsedHeader}
+      </div>`;
+    }
+
+    // ── Expanded body ──
     let purgeWarning = '';
     if ((isActive || isPaused) && a._session?.last_active_at) {
       const lastActive = new Date(a._session.last_active_at).getTime();
@@ -1752,16 +1793,14 @@ function renderAssignmentList(assignments) {
             <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate</button>
             <button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>
           </div>`;
-    return `<div class="assignment-item ${isActive?'active-assignment':''} ${STATE.selectedAssignmentId===a.id?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
-      <div class="assignment-item-title">${esc(a.title)}</div>
-      <div class="assignment-item-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
-      <div style="margin-top:0.3rem;display:flex;align-items:center;gap:0.5rem">
-        ${statusPill}
-        ${(isActive||isPaused)?`<span style="font-family:'DM Mono',monospace;font-size:var(--text-xs);font-weight:600;color:var(--pt-write);background:var(--pt-write-pale);border:1px solid var(--pt-write-l);border-radius:var(--radius-sm);padding:0.15rem 0.5rem;letter-spacing:0.06em">${esc(a._joinCode)}</span><button class="pt-tooltip-btn" onclick="event.stopPropagation();showTooltip(this,'This is your session\'s unique join code. Students go to write.papertrailacademic.com, enter this code, and they\'re in. A new code is generated every time you open a session.')" title="About join codes">?</button>`:''}
-        ${isActive?`<button onclick="event.stopPropagation();projectJoinCode('${esc(a._joinCode)}','${esc(a.title)}')" title="Project join code in new window" style="background:none;border:none;padding:0.1rem 0.2rem;cursor:pointer;color:var(--pt-muted);font-size:0.9rem;line-height:1;border-radius:3px" onmouseover="this.style.color='var(--pt-write)'" onmouseout="this.style.color='var(--pt-muted)'">⛶</button>`:''}
+
+    return `<div class="assignment-item ${isActive?'active-assignment':''} ${isSelected?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
+      ${collapsedHeader}
+      <div class="asgn-body">
+        <div class="assignment-item-meta" style="margin-bottom:0.3rem">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
+        ${purgeWarning}
+        <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
       </div>
-      ${purgeWarning}
-      <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
     </div>`;
   };
 
@@ -1785,6 +1824,30 @@ function renderAssignmentList(assignments) {
   }
 
   el.innerHTML = html;
+}
+
+function toggleAssignmentExpand(assignmentId) {
+  if (STATE._expandedAssignments.has(assignmentId)) {
+    STATE._expandedAssignments.delete(assignmentId);
+  } else {
+    STATE._expandedAssignments.add(assignmentId);
+    // Also select this assignment so the report panel loads
+    selectAssignment(assignmentId);
+  }
+  // Re-render without a full dashboard reload
+  const assignments = STATE._assignments || [];
+  const sessionsByAssignment = STATE._lastSessions || {};
+  const hasEverRun = {};
+  assignments.forEach(a => { if (sessionsByAssignment[a.id]) hasEverRun[a.id] = true; });
+  const ptLabels2={essay:'Open Writing', document_based:'Document-Based', source_analysis:'Source-Based'};
+  const merged = assignments.map(a => ({
+    ...a,
+    _status: sessionsByAssignment[a.id]?.status||(hasEverRun[a.id]?'inactive':'draft'),
+    _session: sessionsByAssignment[a.id]||null,
+    _joinCode: sessionsByAssignment[a.id]?.join_code||'',
+    _hasEverRun: !!hasEverRun[a.id],
+  }));
+  renderAssignmentList(merged);
 }
 
 function toggleArchivePanel() {
@@ -2906,8 +2969,13 @@ async function loadSubmissions(assignmentId) {
       || sessions[0];
     STATE.selectedSessionId = targetSession.id;
 
-    // Render session selector if multiple sessions exist
-    renderSessionSelector(sessions, targetSession.id, assignmentId);
+    // Update panel title with assignment name
+    const panelAssignment = (STATE._assignments||[]).find(a => a.id === assignmentId);
+    const titleEl = document.getElementById('submissions-panel-title');
+    if (titleEl) titleEl.textContent = panelAssignment ? panelAssignment.title : 'Session Report';
+
+    // Render session selector (past sessions dropdown if >1 session for this assignment)
+    renderPastSessionsSelector(sessions, targetSession.id, assignmentId);
 
     // Load submissions for target session
     const {data, error} = await db.from('submissions').select('*')
@@ -2921,35 +2989,80 @@ async function loadSubmissions(assignmentId) {
 }
 
 function renderSessionSelector(sessions, activeId, assignmentId) {
-  // Only show selector if more than 1 session
+  // Legacy — now handled by renderSessionTabs. No-op.
+}
+
+// ── SESSION TABS ──
+// Renders one tab per live (active/paused) session across ALL assignments.
+// Called after loadDashboard updates _lastSessions and _assignments.
+function renderSessionTabs() {
+  const wrap = document.getElementById('session-tabs-wrap');
+  if (!wrap) return;
+
+  // Gather all live sessions across all assignments
+  const liveSessions = [];
+  const sessions = STATE._lastSessions || {};
+  const assignments = STATE._assignments || [];
+  for (const [assignmentId, sess] of Object.entries(sessions)) {
+    if (sess && (sess.status === 'active' || sess.status === 'paused')) {
+      const asgn = assignments.find(a => a.id === assignmentId);
+      liveSessions.push({ sess, assignmentId, asgn });
+    }
+  }
+
+  // Always show tabs container; hide if nothing live
+  if (!liveSessions.length) {
+    wrap.innerHTML = '';
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+
+  const tabs = liveSessions.map(({ sess, assignmentId, asgn }) => {
+    const cls = (STATE._classes||[]).find(c => c.id === sess.class_id);
+    const classLabel = cls ? cls.name : '';
+    const title = asgn ? asgn.title : 'Session';
+    const label = classLabel ? `${title} — ${classLabel}` : title;
+    const isActive = STATE.selectedAssignmentId === assignmentId;
+    const isPaused = sess.status === 'paused';
+    const statusDot = isPaused
+      ? `<span style="color:#b45309;font-size:10px;margin-left:4px">⏸</span>`
+      : `<span style="display:inline-block;width:7px;height:7px;background:#2a7a3b;border-radius:50%;margin-left:5px;vertical-align:middle"></span>`;
+    return `<button class="session-tab ${isActive ? 'session-tab-active' : ''}"
+      onclick="selectAssignment('${assignmentId}')"
+      title="${isPaused ? 'Paused' : 'Live'} · ${label}"
+    >${label}${statusDot}</button>`;
+  }).join('');
+
+  wrap.innerHTML = tabs;
+}
+
+// Shows a compact "Past sessions" dropdown below the tabs when this assignment
+// has more than 1 session (the current/live one + historical ones).
+function renderPastSessionsSelector(sessions, activeId, assignmentId) {
   const toolbar = document.getElementById('sub-toolbar');
   if (!toolbar) return;
-
-  // Remove existing session selector if present
-  const existing = document.getElementById('session-selector-wrap');
-  if (existing) existing.remove();
-
-  if (sessions.length <= 1) return;
+  document.getElementById('session-selector-wrap')?.remove();
+  // Only show if there are past (ended) sessions beyond the current one
+  const pastSessions = sessions.filter(s => s.status === 'ended');
+  if (!pastSessions.length) return;
 
   const sessionLabel = (s) => {
-    // Prefer explicit label, then class name, then fallback to date
     if (s.session_label) return s.session_label;
     const cls = (STATE._classes||[]).find(c => c.id === s.class_id);
     if (cls) return `${cls.name} · ${formatTime(s.started_at)}`;
     return formatTime(s.started_at);
   };
-  const statusTag = s => s.status === 'active' ? ' ●' : s.status === 'paused' ? ' ⏸' : '';
-  const options = sessions.map(s =>
-    `<option value="${s.id}" ${s.id===activeId?'selected':''}>${sessionLabel(s)}${statusTag(s)}</option>`
+  const allOptions = sessions.map(s =>
+    `<option value="${s.id}" ${s.id===activeId?'selected':''}>${sessionLabel(s)}${s.status==='active'?' ●':s.status==='paused'?' ⏸':' (ended)'}</option>`
   ).join('');
 
   const wrap = document.createElement('div');
   wrap.id = 'session-selector-wrap';
-  wrap.style.cssText = 'padding:0.5rem var(--space-md);background:#f8f6fd;border-bottom:1px solid var(--pt-border);display:flex;align-items:center;gap:0.75rem;font-size:var(--text-sm)';
-  wrap.innerHTML = `<span style="color:var(--pt-muted);font-size:var(--text-xs);font-weight:600;letter-spacing:0.06em;text-transform:uppercase">Session</span>
-    <select style="flex:1;padding:0.35rem 0.6rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:var(--text-sm);color:var(--pt-ink)"
-      onchange="switchSession('${assignmentId}', this.value)">${options}</select>
-    <span style="font-size:var(--text-xs);color:var(--pt-muted)">${sessions.length} sessions total</span>`;
+  wrap.style.cssText = 'padding:0.4rem var(--space-md);background:#f8f6fd;border-bottom:1px solid var(--pt-border);display:flex;align-items:center;gap:0.6rem;font-size:var(--text-xs)';
+  wrap.innerHTML = `<span style="color:var(--pt-muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap">Past sessions</span>
+    <select style="flex:1;padding:0.25rem 0.5rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:var(--text-xs);color:var(--pt-ink)"
+      onchange="switchSession('${assignmentId}', this.value)">${allOptions}</select>`;
   toolbar.insertAdjacentElement('afterend', wrap);
 }
 
