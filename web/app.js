@@ -1807,6 +1807,7 @@ function renderAssignmentList(assignments) {
       ${collapsedHeader}
       <div class="asgn-body">
         <div class="assignment-item-meta" style="margin-bottom:0.3rem">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
+        ${(isActive||isPaused)?`<div style="margin-bottom:0.4rem;display:flex;align-items:center;gap:0.4rem">${joinCodePill}${projectorBtn}</div>`:''}
         ${purgeWarning}
         <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
       </div>
