@@ -79,7 +79,7 @@ function projectJoinCode(code, title) {
 <body>
   <div class="title">${title.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
   <div class="code" id="code">${code}</div>
-  <div class="hint">Students go to <strong>papertrail-write.vercel.app</strong> and enter this code</div>
+  <div class="hint">Students go to <strong>write.papertrailacademic.com</strong> and enter this code</div>
   <script>
     function fitCode() {
       const el = document.getElementById('code');
