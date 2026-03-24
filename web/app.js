@@ -695,7 +695,7 @@ async function studentLogin() {
   btn.disabled=true; btn.textContent='Checking…';
   try {
     // Look up active session by join code
-    const {data:sessions,error:sessErr}=await db.from('sessions').select('*').eq('join_code',joinCode).eq('status','active');
+    const {data:sessions,error:sessErr}=await db.from('sessions').select('*').eq('join_code',joinCode).in('status',['active','paused']);
     if(sessErr) throw sessErr;
     if(!sessions||!sessions.length){statusEl.className='status-msg error';statusEl.textContent='No active session found with that join code. Ask your teacher to check.';return;}
     const session=sessions[0];
@@ -776,7 +776,7 @@ async function studentLogin() {
     showScreen('transparency');
   } catch(err) {
     statusEl.className='status-msg error'; statusEl.textContent='Something went wrong: '+err.message;
-  } finally { btn.disabled=false; btn.textContent='Continue →'; btn.onclick=()=>studentLoginStep(); }
+  } finally { btn.disabled=false; btn.textContent='Continue →'; }
 }
 
 // Applies a resume-from-existing-submission state to STATE (shared by normal resume and collision-confirmed resume)
@@ -2977,7 +2977,7 @@ function calcStudentTimeRemaining(sub, sess, timeLimitMinutes) {
   const totalSecs = (timeLimitMinutes * 60)
     + ((sess.extra_minutes || 0) * 60)
     + ((sub.extra_minutes || 0) * 60);
-  const joinedAt = new Date(sub.created_at).getTime();
+  const joinedAt = new Date(sub.started_at || sub.created_at).getTime();
   const elapsedSecs = Math.floor((Date.now() - joinedAt) / 1000);
   // paused_seconds = total past pause wall-time (already committed)
   let pauseOffset = sess.paused_seconds || 0;
@@ -3002,7 +3002,8 @@ function renderSubmissionsTable(submissions) {
   const countEl=document.getElementById('sub-count'),wrapEl=document.getElementById('submissions-table-wrap');
   if(!submissions.length){countEl.textContent='No submissions yet.';wrapEl.innerHTML='<div class="empty-panel" style="padding:3rem">No submissions yet for this session.</div>';return;}
   const submitted=submissions.filter(s=>s.is_submitted).length;
-  countEl.textContent=`${submissions.length} student${submissions.length!==1?'s':''} · ${submitted} submitted`;
+  const inProgress=submissions.length-submitted;
+  countEl.innerHTML=`<span style="font-weight:600">${submissions.length} student${submissions.length!==1?'s':''}</span> &nbsp;·&nbsp; <span style="color:var(--pt-write);font-weight:600">${inProgress} writing</span> &nbsp;·&nbsp; <span style="color:#2a7a3b;font-weight:600">${submitted} submitted</span>`;
   // Build a set of names that appear more than once — used to flag duplicate rows
   const nameCounts={};
   submissions.forEach(s=>{ const n=s.student_display_name||''; nameCounts[n]=(nameCounts[n]||0)+1; });
@@ -3051,14 +3052,31 @@ function renderSubmissionsTable(submissions) {
   const addTimeBtn = sessIsLive
     ? `<button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem" onclick="openAddTimeModal()">＋ Add Time</button>`
     : '';
+  // Universal pause/resume button — shown only when session is live
+  const sessStatus = sess ? sess.status : null;
+  const pauseResumeBtn = sessIsLive
+    ? sessStatus === 'paused'
+      ? `<button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;border-color:#b45309;color:#b45309" onclick="unpauseSession('${STATE.selectedAssignmentId}','${sess && sess.id}')">▶ Resume All</button>`
+      : `<button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem" onclick="pauseSession('${STATE.selectedAssignmentId}','${sess && sess.id}')">⏸ Pause All</button>`
+    : '';
   const toolbar = document.getElementById('sub-toolbar');
-  // Remove old add-time btn if present, then re-insert
+  // Remove old injected buttons then re-insert
   document.getElementById('add-time-global-btn-wrap')?.remove();
-  if (addTimeBtn && toolbar) {
-    const wrap = document.createElement('span');
-    wrap.id = 'add-time-global-btn-wrap';
-    wrap.innerHTML = addTimeBtn;
-    toolbar.insertBefore(wrap, toolbar.querySelector('#export-btn'));
+  document.getElementById('pause-resume-global-btn-wrap')?.remove();
+  if (toolbar) {
+    const exportBtn = toolbar.querySelector('#export-btn');
+    if (pauseResumeBtn) {
+      const wrap = document.createElement('span');
+      wrap.id = 'pause-resume-global-btn-wrap';
+      wrap.innerHTML = pauseResumeBtn;
+      toolbar.insertBefore(wrap, exportBtn);
+    }
+    if (addTimeBtn) {
+      const wrap = document.createElement('span');
+      wrap.id = 'add-time-global-btn-wrap';
+      wrap.innerHTML = addTimeBtn;
+      toolbar.insertBefore(wrap, exportBtn);
+    }
   }
   wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events <button class="pt-tooltip-btn" onclick="showTooltip(this,'Notable events are: paste events (text pasted into the essay), focus loss (student left the window or switched tabs), and first keystroke timing. All are shown in the process log.')" title="About notable events">?</button></th><th>Time Away</th><th>Time Left</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
