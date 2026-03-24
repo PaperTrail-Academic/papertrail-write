@@ -678,9 +678,8 @@ tbody td { padding: 0.7rem var(--space-md); vertical-align: middle; }
 /* Collapsed header row — always visible */
 .asgn-collapsed-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.2rem;
   padding: 0.55rem 0.75rem;
   cursor: pointer;
   border-radius: var(--radius-sm);
@@ -690,12 +689,12 @@ tbody td { padding: 0.7rem var(--space-md); vertical-align: middle; }
   background: var(--pt-write-pale);
 }
 
-.asgn-collapsed-left {
+/* Line 1: chevron + title */
+.asgn-collapsed-top {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
-  flex: 1;
 }
 
 .asgn-chevron {
@@ -714,19 +713,18 @@ tbody td { padding: 0.7rem var(--space-md); vertical-align: middle; }
   text-overflow: ellipsis;
 }
 
-.asgn-collapsed-right {
+/* Line 2: status pill + meta info */
+.asgn-collapsed-sub {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  flex-shrink: 0;
+  padding-left: 1.35rem; /* indent to align under title */
   flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
 .asgn-collapsed-meta {
   font-size: var(--text-xs);
   color: var(--pt-muted);
-  white-space: nowrap;
 }
 
 /* Fully collapsed card — no padding beyond the header */
