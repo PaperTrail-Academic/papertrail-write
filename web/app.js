@@ -2972,9 +2972,6 @@ async function loadSubmissions(assignmentId) {
     const titleEl = document.getElementById('submissions-panel-title');
     if (titleEl) titleEl.textContent = panelAssignment ? panelAssignment.title : 'Session Report';
 
-    // Render session selector (past sessions dropdown if >1 session for this assignment)
-    renderPastSessionsSelector(sessions, targetSession.id, assignmentId);
-
     // Load submissions for target session
     const {data, error} = await db.from('submissions').select('*')
       .eq('session_id', targetSession.id)
@@ -3035,34 +3032,6 @@ function renderSessionTabs() {
   wrap.innerHTML = tabs;
 }
 
-// Shows a compact "Past sessions" dropdown below the tabs when this assignment
-// has more than 1 session (the current/live one + historical ones).
-function renderPastSessionsSelector(sessions, activeId, assignmentId) {
-  const toolbar = document.getElementById('sub-toolbar');
-  if (!toolbar) return;
-  document.getElementById('session-selector-wrap')?.remove();
-  // Only show if there are past (ended) sessions beyond the current one
-  const pastSessions = sessions.filter(s => s.status === 'ended');
-  if (!pastSessions.length) return;
-
-  const sessionLabel = (s) => {
-    if (s.session_label) return s.session_label;
-    const cls = (STATE._classes||[]).find(c => c.id === s.class_id);
-    if (cls) return `${cls.name} · ${formatTime(s.started_at)}`;
-    return formatTime(s.started_at);
-  };
-  const allOptions = sessions.map(s =>
-    `<option value="${s.id}" ${s.id===activeId?'selected':''}>${sessionLabel(s)}${s.status==='active'?' ●':s.status==='paused'?' ⏸':' (ended)'}</option>`
-  ).join('');
-
-  const wrap = document.createElement('div');
-  wrap.id = 'session-selector-wrap';
-  wrap.style.cssText = 'padding:0.4rem var(--space-md);background:#f8f6fd;border-bottom:1px solid var(--pt-border);display:flex;align-items:center;gap:0.6rem;font-size:var(--text-xs)';
-  wrap.innerHTML = `<span style="color:var(--pt-muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap">Past sessions</span>
-    <select style="flex:1;padding:0.25rem 0.5rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:var(--text-xs);color:var(--pt-ink)"
-      onchange="switchSession('${assignmentId}', this.value)">${allOptions}</select>`;
-  toolbar.insertAdjacentElement('afterend', wrap);
-}
 
 async function switchSession(assignmentId, sessionId) {
   STATE.selectedSessionId = sessionId;
