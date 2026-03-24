@@ -2109,7 +2109,6 @@ function renderFormSources() {
     const fileSize = src._file ? formatBytes(src._file.size) : '';
 
     // Drive button — coming soon for all users until Google OAuth verification is complete
-    // TODO: restore isGoogleUser() check once drive.readonly is verified
     const driveBtn = false
       ? `<button class="btn-drive-picker" onclick="openDrivePicker(${idx})" title="Import from Google Drive">
           <svg width="14" height="14" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
@@ -2169,12 +2168,6 @@ function addSource() {
 
 function removeSource(idx) {
   STATE.formSources.splice(idx, 1);
-  renderFormSources();
-}
-
-function selectSourceType(idx, type) {
-  STATE.formSources[idx].type = type;
-  STATE.formSources[idx]._file = null;
   renderFormSources();
 }
 
@@ -2983,10 +2976,6 @@ async function loadSubmissions(assignmentId) {
   } catch(err) { toast('Failed to load session report: '+err.message,'error'); }
 }
 
-function renderSessionSelector(sessions, activeId, assignmentId) {
-  // Legacy — now handled by renderSessionTabs. No-op.
-}
-
 // ── SESSION TABS ──
 // Renders one tab per live (active/paused) session across ALL assignments.
 // Called after loadDashboard updates _lastSessions and _assignments.
@@ -3136,7 +3125,7 @@ function renderSubmissionsTable(submissions) {
   const sessStatus = sess ? sess.status : null;
   const pauseResumeBtn = sessIsLive
     ? sessStatus === 'paused'
-      ? `<button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;border-color:#b45309;color:#b45309" onclick="unpauseSession('${STATE.selectedAssignmentId}','${sess && sess.id}')">▶ Resume All</button>`
+      ? `<button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;border-color:#b45309;color:#b45309" onclick="reopenSession('${STATE.selectedAssignmentId}','${sess && sess.id}')">▶ Resume All</button>`
       : `<button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem" onclick="pauseSession('${STATE.selectedAssignmentId}','${sess && sess.id}')">⏸ Pause All</button>`
     : '';
   const toolbar = document.getElementById('sub-toolbar');
