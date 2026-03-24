@@ -1790,6 +1790,8 @@ function renderAssignmentList(assignments) {
       :isEnded
         ?`<div class="assignment-actions-row assignment-actions-secondary">
             <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate & Edit</button>
+            <button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="event.stopPropagation();archiveAssignment('${a.id}','${esc(a.title)}')">Archive</button>
+            <button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="event.stopPropagation();deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>
           </div>`
       :a._hasEverRun
         ?`<div class="assignment-actions-row assignment-actions-secondary">
