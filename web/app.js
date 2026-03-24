@@ -1729,16 +1729,14 @@ function renderAssignmentList(assignments) {
       : '';
 
     // ── Collapsed header (always visible) ──
+    const subParts = [className, a.time_limit_minutes ? a.time_limit_minutes+' min' : 'No limit'].filter(Boolean);
     const collapsedHeader = `<div class="asgn-collapsed-header" onclick="toggleAssignmentExpand('${a.id}')">
-      <div class="asgn-collapsed-left">
+      <div class="asgn-collapsed-top">
         <span class="asgn-chevron">${isExpanded?'▾':'▸'}</span>
         <span class="asgn-collapsed-title">${esc(a.title)}</span>
       </div>
-      <div class="asgn-collapsed-right">
-        <span class="asgn-collapsed-meta">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</span>
-        ${statusPill}
-        ${joinCodePill}
-        ${projectorBtn}
+      <div class="asgn-collapsed-sub">
+        <span class="asgn-collapsed-meta">${esc(subParts.join(' · '))}</span>
       </div>
     </div>`;
 
