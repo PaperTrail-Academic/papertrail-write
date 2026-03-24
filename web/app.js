@@ -1737,11 +1737,12 @@ function renderAssignmentList(assignments) {
     const subParts = [className].filter(Boolean);
     const collapsedHeader = `<div class="asgn-collapsed-header" onclick="toggleAssignmentExpand('${a.id}')">
       <div class="asgn-collapsed-top">
-        <span class="asgn-chevron">${isExpanded?'▾':'▸'}</span>
-        <span class="asgn-collapsed-title">${esc(a.title)}</span>
-      </div>
-      <div class="asgn-collapsed-sub">
-        <span class="asgn-collapsed-meta">${esc(subParts.join(' · '))}</span>
+        <span class="asgn-chevron ${isExpanded?'asgn-chevron-open':''}">&#9654;</span>
+        <div class="asgn-collapsed-titles">
+          <span class="asgn-collapsed-title">${esc(a.title)}</span>
+          ${subParts.length?`<span class="asgn-collapsed-meta">${esc(subParts.join(' · '))}</span>`:''}
+        </div>
+        ${isExpanded&&(isActive||isPaused||isEnded)?`<div class="asgn-header-status" onclick="event.stopPropagation()">${statusPill}${(isActive||isPaused)?joinCodePill+projectorBtn:''}</div>`:''}
       </div>
     </div>`;
 
@@ -1806,8 +1807,7 @@ function renderAssignmentList(assignments) {
     return `<div class="assignment-item ${isActive?'active-assignment':''} ${isSelected?'selected':''} ${a.archived?'archived-assignment':''}" onclick="selectAssignment('${a.id}')">
       ${collapsedHeader}
       <div class="asgn-body">
-        <div class="assignment-item-meta" style="margin-bottom:0.3rem">${ptLabel}${classPart} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
-        ${(isActive||isPaused)?`<div style="margin-bottom:0.4rem;display:flex;align-items:center;gap:0.4rem">${joinCodePill}${projectorBtn}</div>`:''}
+        <div class="asgn-body-meta">${ptLabel} · ${a.time_limit_minutes?a.time_limit_minutes+' min':'No limit'}</div>
         ${purgeWarning}
         <div class="assignment-item-actions" onclick="event.stopPropagation()">${sessionActions}${editPreviewActions}</div>
       </div>
