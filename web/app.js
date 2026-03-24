@@ -1742,8 +1742,8 @@ function renderAssignmentList(assignments) {
           <span class="asgn-collapsed-title">${esc(a.title)}</span>
           ${subParts.length?`<span class="asgn-collapsed-meta">${esc(subParts.join(' · '))}</span>`:''}
         </div>
-        ${isExpanded&&(isActive||isPaused||isEnded)?`<div class="asgn-header-status" onclick="event.stopPropagation()">${statusPill}${(isActive||isPaused)?joinCodePill+projectorBtn:''}</div>`:''}
       </div>
+      ${isExpanded&&(isActive||isPaused||isEnded)?`<div class="asgn-header-status" onclick="event.stopPropagation()">${statusPill}${(isActive||isPaused)?joinCodePill+projectorBtn:''}</div>`:''}
     </div>`;
 
     if (!isExpanded) {
