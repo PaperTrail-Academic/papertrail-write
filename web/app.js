@@ -2862,17 +2862,21 @@ async function endAssignment(assignmentId,sessionId,title) {
   const {data:sess}=await db.from('sessions').select('started_at,ended_at,join_code').eq('id',sessionId).single();
   const reportData={session:{assignment_title:asgn?.title,prompt_type:asgn?.prompt_type,join_code:sess?.join_code,started_at:sess?.started_at},submissions:(subs||[])};
   openModal(`
-    <div class="modal-header"><h3>End assignment</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3>End session</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <p style="margin-bottom:var(--space-md)"><strong>${esc(title)}</strong></p>
-      <div class="disclaimer" style="margin-bottom:var(--space-md)">Download the session report before ending. Once ended, <strong>this session's</strong> student submission data will be permanently deleted. The assignment stays open — you can run it again with a new session.</div>
+      <p style="margin-bottom:var(--space-sm)"><strong>${esc(title)}</strong></p>
+      <div class="disclaimer" style="margin-bottom:var(--space-md)">
+        <strong>Before ending:</strong><br>
+        1. Download the session report below — student submission data will be permanently deleted once the session ends.<br><br>
+        2. Make sure students have saved their work somewhere (Google Doc, Word, etc.) to submit to you directly.
+      </div>
       <button class="btn btn-secondary btn-block" id="download-report-btn" onclick="downloadReportZip(${JSON.stringify(reportData).replace(/"/g,'&quot;')})">↓ Download Session Report</button>
-      <div style="margin-top:var(--space-md);display:none" id="end-confirm-section">
+      <div style="margin-top:var(--space-lg)">
         <label style="display:flex;gap:0.75rem;align-items:flex-start;cursor:pointer;font-size:var(--text-sm)">
           <input type="checkbox" id="end-confirm-check" onchange="document.getElementById('do-end-btn').disabled=!this.checked" style="margin-top:3px;accent-color:var(--pt-write)">
-          <span>I have downloaded the report and understand that student data will be deleted.</span>
+          <span>I understand that student data will be permanently deleted when this session ends.</span>
         </label>
-        <button class="btn btn-danger btn-block" style="margin-top:var(--space-md)" id="do-end-btn" disabled onclick="closeModal();doEndAssignment('${assignmentId}','${sessionId}')">End Assignment</button>
+        <button class="btn btn-danger btn-block" style="margin-top:var(--space-md)" id="do-end-btn" disabled onclick="closeModal();doEndAssignment('${assignmentId}','${sessionId}')">End Session</button>
       </div>
     </div>`);
 }
@@ -2900,9 +2904,6 @@ async function downloadReportZip(reportData) {
     a.download=`papertrail-write-${slug}.zip`;
     a.click(); URL.revokeObjectURL(url);
     if(btn){btn.textContent='↓ Downloaded ✓';btn.className='btn btn-success btn-block';}
-    // Show confirm section
-    const section=document.getElementById('end-confirm-section');
-    if(section) section.style.display='block';
   } catch(err){
     toast('Report generation failed: '+err.message,'error');
     if(btn){btn.disabled=false;btn.textContent='↓ Download Session Report';}
