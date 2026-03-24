@@ -1262,15 +1262,17 @@ async function loadDashboard() {
     STATE._assignments = assignments||[];
     const sessionsByAssignment={};
     const hasEverRun={};
+    const hasEndedOnly={};
     (sessions||[]).forEach(s=>{
       hasEverRun[s.assignment_id]=true;
       if(s.status!=='ended') sessionsByAssignment[s.assignment_id]=s;
+      else hasEndedOnly[s.assignment_id]=true;
     });
     STATE._lastSessions=sessionsByAssignment;
     const merged=(assignments||[]).map(a=>({
       ...a,
       _session: sessionsByAssignment[a.id]||null,
-      _status: sessionsByAssignment[a.id]?.status||(hasEverRun[a.id]?'inactive':'draft'),
+      _status: sessionsByAssignment[a.id]?.status||(hasEndedOnly[a.id]&&!sessionsByAssignment[a.id]?'ended':hasEverRun[a.id]?'inactive':'draft'),
       _hasEverRun: hasEverRun[a.id]||false,
       _joinCode: sessionsByAssignment[a.id]?.join_code||a.join_code||'—',
     }));
@@ -1703,6 +1705,7 @@ function renderAssignmentList(assignments) {
     const isActive=a._status==='active';
     const isPaused=a._status==='paused';
     const isInactive=a._status==='inactive';
+    const isEnded=a._status==='ended';
     const sessionId=a._session?.id||null;
     const isExpanded = STATE._expandedAssignments.has(a.id);
     const isSelected = STATE.selectedAssignmentId===a.id;
@@ -1713,9 +1716,11 @@ function renderAssignmentList(assignments) {
         ?`<span class="pill" style="background:#fff8e1;color:var(--warning);border-color:#f0c040">Paused</span>`
         :a.archived
           ?`<span class="pill" style="background:var(--pt-light);color:var(--pt-muted);border-color:var(--pt-border)">Archived</span>`
-          :isInactive
-            ?`<span class="pill" style="background:var(--pt-light);color:var(--pt-muted);border-color:var(--pt-border)">Inactive</span>`
-            :`<span class="pill pill-inactive">Draft</span>`;
+          :isEnded
+            ?`<span class="pill" style="background:#fef2f2;color:#991b1b;border-color:#fca5a5">Ended</span>`
+            :isInactive
+              ?`<span class="pill" style="background:var(--pt-light);color:var(--pt-muted);border-color:var(--pt-border)">Inactive</span>`
+              :`<span class="pill pill-inactive">Draft</span>`;
     const ptLabel=ptLabels[a.prompt_type]||'Essay';
     const className = a.class_id ? ((STATE._classes||[]).find(c=>c.id===a.class_id)?.name||'') : '';
     const classPart = className ? ` · ${esc(className)}` : '';
@@ -1770,15 +1775,21 @@ function renderAssignmentList(assignments) {
             <button class="btn btn-success" onclick="reopenSession('${a.id}','${sessionId}')">▶ Reopen</button>
             <button class="btn btn-danger" onclick="endAssignment('${a.id}','${sessionId}','${esc(a.title)}')">End Session</button>
           </div>`
-        :`<div class="assignment-actions-row assignment-actions-primary">
-            <button class="btn btn-success" onclick="openSession('${a.id}')">${isInactive?'Open New Session':'Open Session'}</button>
-            <button class="btn btn-danger" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>
-          </div>`;
+        :isEnded
+          ?'' 
+          :`<div class="assignment-actions-row assignment-actions-primary">
+              <button class="btn btn-success" onclick="openSession('${a.id}')">${isInactive?'Open New Session':'Open Session'}</button>
+              <button class="btn btn-danger" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">Delete</button>
+            </div>`;
     const editPreviewActions = a.archived
       ?`<div class="assignment-actions-row assignment-actions-secondary">
           <button class="btn btn-secondary" onclick="event.stopPropagation();unarchiveAssignment('${a.id}')">↩ Unarchive</button>
           <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate & Edit</button>
         </div>`
+      :isEnded
+        ?`<div class="assignment-actions-row assignment-actions-secondary">
+            <button class="btn btn-ghost" onclick="event.stopPropagation();duplicateAssignment('${a.id}')">Duplicate & Edit</button>
+          </div>`
       :a._hasEverRun
         ?`<div class="assignment-actions-row assignment-actions-secondary">
             <button class="btn btn-ghost" onclick="event.stopPropagation();previewAssignment('${a.id}')">Preview</button>
