@@ -3145,7 +3145,8 @@ function renderSubmissionsTable(submissions) {
       timeRemainingCell = `<td style="font-size:var(--text-xs);color:var(--pt-muted)">∞</td>`;
     }
     const dupBadge = duplicateNames.has(s.student_display_name||'') ? ' <span style="font-size:10px;font-weight:600;color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:3px;padding:0.1rem 0.35rem;vertical-align:middle">⚠ duplicate name</span>' : '';
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td><strong>${esc(s.student_display_name)}</strong>${dupBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    const notableDot = hasNotableEvent(log) ? '<span title="Notable event recorded — expand row to view process log" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#b45309;margin-right:0.4rem;vertical-align:middle"></span>' : '';
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td>${notableDot}<strong>${esc(s.student_display_name)}</strong>${dupBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   // Show Add Time button in toolbar only when session is active or paused
   const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
@@ -3371,6 +3372,15 @@ async function confirmUnsubmit(subId) {
   }
 }
 
+
+function hasNotableEvent(log) {
+  const pastes = log.filter(e => e.type === 'paste');
+  if (pastes.some(e => e.char_count > 200)) return true;
+  if (log.some(e => e.type === 'paste_then_delete')) return true;
+  const focuses = log.filter(e => e.type === 'window_focus');
+  if (focuses.some(e => (e.char_count || 0) >= 120)) return true;
+  return false;
+}
 
 function labelForEvent(type) {
   const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste'};
