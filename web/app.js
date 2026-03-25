@@ -1241,6 +1241,22 @@ async function copyToClipboard(silent=false) {
   try{await navigator.clipboard.writeText(ta.value);if(!silent) toast('Essay copied to clipboard','success');}
   catch(e){ta.select();document.execCommand('copy');if(!silent) toast('Essay copied','success');}
 }
+function downloadStudentEssay() {
+  const ta=document.getElementById('submitted-essay'); if(!ta) return;
+  const text=ta.value; if(!text.trim()){toast('No essay text to download','warning');return;}
+  const title=STATE.assignmentTitle||'Assignment';
+  const name=STATE.studentName||'Student';
+  const now=new Date().toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'});
+  const divider='─'.repeat(40);
+  const content=`PaperTrail Write — Submitted Essay\nAssignment: ${title}\nStudent: ${name}\nSubmitted: ${now}\n\n${divider}\n\n${text}\n\n${divider}\n\nNote: This data will be deleted from PaperTrail's servers within 24 hours of your session ending. Save this file for your records.`;
+  const slug=title.replace(/[^a-z0-9]+/gi,'-').toLowerCase().slice(0,40);
+  const blob=new Blob([content],{type:'text/plain'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`papertrail-${slug}.txt`; a.click();
+  URL.revokeObjectURL(url);
+  toast('Essay downloaded','success');
+}
 
 // ── TEACHER DASHBOARD ──
 async function loadDashboard() {
