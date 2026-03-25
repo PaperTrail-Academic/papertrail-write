@@ -2934,6 +2934,9 @@ async function doEndAssignment(assignmentId,sessionId) {
     // Clear selected session so loadSubmissions picks the next best one
     if (STATE.selectedSessionId === sessionId) STATE.selectedSessionId = null;
     unsubscribeLiveSession();
+    // Eagerly remove from _lastSessions so the tab disappears immediately (before loadDashboard round-trip)
+    if(STATE._lastSessions) delete STATE._lastSessions[assignmentId];
+    renderSessionTabs();
     toast('Session ended — student data deleted','success');
     loadDashboard();
     // Reload submissions panel to show remaining sessions
@@ -2946,8 +2949,13 @@ async function deleteAssignment(id,title) {
 }
 async function doDeleteAssignment(id) {
   try {
+    // Kill live monitoring immediately so badge and tab disappear before loadDashboard re-renders
+    if(STATE.selectedAssignmentId===id) unsubscribeLiveSession();
     await db.from('assignments').delete().eq('id',id);
     if(STATE.selectedAssignmentId===id){STATE.selectedAssignmentId=null;STATE.allSubmissions=[];document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">Select an assignment on the left.</div>';document.getElementById('sub-count').textContent='Select an assignment to view its session report.';document.getElementById('export-btn').disabled=true;}
+    // Scrub from _lastSessions so renderSessionTabs() sees it gone immediately
+    if(STATE._lastSessions) delete STATE._lastSessions[id];
+    renderSessionTabs();
     toast('Assignment deleted','success'); loadDashboard();
   } catch(err){toast('Delete failed: '+err.message,'error');}
 }
