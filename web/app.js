@@ -130,7 +130,6 @@ async function boot() {
     STATE.teacher = session.user;
     // Ensure teacher profile row exists (first Google sign-in won't have one yet)
     await ensureTeacherProfile(session.user);
-    document.getElementById('dash-user-email').textContent = session.user.email;
     await loadDashboard();
     showScreen('dashboard');
     return;
@@ -144,7 +143,6 @@ db.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session && !STATE.teacher) {
     STATE.teacher = session.user;
     await ensureTeacherProfile(session.user);
-    document.getElementById('dash-user-email').textContent = session.user.email;
     await loadDashboard();
     showScreen('dashboard');
   }
@@ -383,7 +381,6 @@ async function teacherLogin() {
     const {data,error}=await db.auth.signInWithPassword({email,password:pw});
     if(error) throw error;
     STATE.teacher=data.user;
-    document.getElementById('dash-user-email').textContent=data.user.email;
     document.getElementById('t-password').value='';
     status.className='status-msg';
     await loadDashboard();
@@ -1267,11 +1264,17 @@ async function loadDashboard() {
       {data:assignments,error:aErr},
       {data:sessions,error:sErr},
       {data:classes,error:cErr},
+      {data:teacherRow},
     ] = await Promise.all([
       db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}),
       db.from('sessions').select('*').eq('teacher_id',user.id), // fetch ALL including ended
       db.from('classes').select('*').eq('teacher_id',user.id).order('name',{ascending:true}),
+      db.from('teachers').select('display_name').eq('id',user.id).maybeSingle(),
     ]);
+    STATE._teacherDisplayName = teacherRow?.display_name || null;
+    const dashName = STATE._teacherDisplayName || user.email;
+    const dashEl = document.getElementById('dash-user-email');
+    if (dashEl) dashEl.textContent = dashName;
     if(aErr) throw aErr;
     if(sErr) throw sErr;
     STATE._classes = classes||[];
@@ -3210,8 +3213,10 @@ async function printStudentReport(subId) {
     // Fetch assignment via session
     const {data:sess, error:sessErr} = await db.from('sessions').select('assignment_id, join_code, started_at, session_label, class_id').eq('id', sub.session_id).single();
     if (sessErr) throw sessErr;
-    const {data:asgn, error:aErr} = await db.from('assignments').select('title, prompt_type, prompt_text').eq('id', sess.assignment_id).single();
+    const {data:asgn, error:aErr} = await db.from('assignments').select('title, prompt_type, prompt_text, teacher_id').eq('id', sess.assignment_id).single();
     if (aErr) throw aErr;
+    const {data:teacherRow} = await db.from('teachers').select('display_name, email').eq('id', asgn.teacher_id).maybeSingle();
+    const teacherLabel = teacherRow?.display_name || teacherRow?.email || '—';
 
     const ptLabels = {essay:'Open Writing', document_based:'Document-Based', source_analysis:'Source-Based'};
     const ptLabel = ptLabels[asgn.prompt_type] || 'Open Writing';
@@ -3300,6 +3305,10 @@ async function printStudentReport(subId) {
     <div>
       <div class="label">Period</div>
       <div class="value">${esc(sub.class_period||'—')}</div>
+    </div>
+    <div>
+      <div class="label">Teacher</div>
+      <div class="value">${esc(teacherLabel)}</div>
     </div>
     <div>
       <div class="label">Session started</div>
