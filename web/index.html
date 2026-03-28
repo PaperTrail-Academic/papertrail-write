@@ -345,11 +345,11 @@
           <h1>Write</h1>
         </div>
       </div>
-      <div style="display:flex;gap:0.6rem;align-items:center">
-        <span id="dash-user-email" style="font-size:var(--text-xs);color:rgba(255,255,255,0.4);margin-right:0.25rem;"></span>
+      <div style="display:flex;gap:0.6rem;align-items:center;position:relative">
         <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="showHelpPopover(this)">? Help</button>
         <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="refreshDashboard()">↻ Refresh</button>
-        <button class="btn btn-ghost" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="teacherLogout()">Sign out</button>
+        <button class="btn btn-ghost" id="account-menu-btn" style="font-size:var(--text-xs);padding:0.45rem 0.8rem;color:rgba(255,255,255,0.55);border-color:rgba(255,255,255,0.15)" onclick="toggleAccountMenu(this)">⚙ Account ▾</button>
+        <div id="account-menu-dropdown" class="account-dropdown" style="display:none"></div>
       </div>
     </div>
   </header>
