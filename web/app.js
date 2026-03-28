@@ -408,9 +408,10 @@ function toggleAccountMenu(btn) {
   }
   const plan = STATE._teacherPlan || 'trial';
   const name = STATE._teacherDisplayName || '';
-  const email = STATE._teacherEmail || '';
+  // Fix: fall back to STATE.teacher.email if _teacherEmail not yet set (race on slow connections)
+  const email = STATE._teacherEmail || STATE.teacher?.email || '';
   const planLabel = plan === 'pro' ? 'Pro' : plan === 'school' ? 'School' : 'Trial';
-  const lsPortalUrl = 'https://app.lemonsqueezy.com/my-orders';
+  const lsPortalUrl = 'https://papertrailacademic.lemonsqueezy.com/billing';
   dropdown.innerHTML = `
     <div class="account-dropdown-header">
       ${name ? `<div class="account-dropdown-name">${esc(name)}</div>` : ''}
@@ -428,14 +429,13 @@ function toggleAccountMenu(btn) {
     <button class="account-dropdown-item danger" onclick="closeAccountMenu();showDeleteAccountModal()">Delete account…</button>
   `;
   dropdown.style.display = 'block';
-  // Close on outside click
+  // Fix: use { once: true } so listener never accumulates across multiple opens
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
       if (!dropdown.contains(e.target) && e.target !== btn) {
         dropdown.style.display = 'none';
-        document.removeEventListener('click', handler);
       }
-    });
+    }, { once: true });
   }, 0);
 }
 function closeAccountMenu() {
@@ -444,14 +444,30 @@ function closeAccountMenu() {
 }
 
 function showDeleteAccountModal() {
+  // Fix 5: warn if active/paused sessions exist
+  const activeSessions = Object.values(STATE._lastSessions || {}).filter(s =>
+    s && (s.status === 'active' || s.status === 'paused')
+  );
+  const sessionWarning = activeSessions.length > 0
+    ? `<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:var(--radius-sm);padding:0.65rem 0.85rem;margin-bottom:var(--space-md);font-size:var(--text-sm);color:#991b1b">
+        <strong>⚠ You have ${activeSessions.length} active or paused session${activeSessions.length > 1 ? 's' : ''}.</strong>
+        Students may currently be writing. End all sessions before deleting your account.
+       </div>`
+    : '';
+  // Fix 8: only show subscription copy for paid plans
+  const plan = STATE._teacherPlan || 'trial';
+  const subWarning = plan !== 'trial'
+    ? `<p style="margin-bottom:var(--space-md);font-size:var(--text-sm);color:var(--pt-muted)">Cancel your Pro subscription first via <a href="https://papertrailacademic.lemonsqueezy.com/billing" target="_blank" rel="noopener" style="color:var(--pt-write)">Manage subscription</a> to avoid future charges.</p>`
+    : '';
   openModal(`
     <div class="modal-header">
       <h3 style="color:var(--danger)">Delete account</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
+      ${sessionWarning}
       <p style="margin-bottom:var(--space-sm)">This will permanently delete your account and all associated data — assignments, classes, and sessions. This cannot be undone.</p>
-      <p style="margin-bottom:var(--space-md);font-size:var(--text-sm);color:var(--pt-muted)">If you have an active Pro subscription, cancel it first via <a href="https://app.lemonsqueezy.com/my-orders" target="_blank" rel="noopener" style="color:var(--pt-write)">Manage subscription</a> to avoid future charges.</p>
+      ${subWarning}
       <div class="form-group">
         <label style="font-size:var(--text-sm)">Type <strong>DELETE</strong> to confirm</label>
         <input class="form-input" id="delete-confirm-input" type="text" placeholder="DELETE" autocomplete="off"
@@ -1374,9 +1390,7 @@ async function loadDashboard() {
     STATE._teacherDisplayName = teacherRow?.display_name || null;
     STATE._teacherPlan = teacherRow?.plan || 'trial';
     STATE._teacherEmail = user.email || '';
-    const dashName = STATE._teacherDisplayName || user.email;
-    const dashEl = document.getElementById('dash-user-email');
-    if (dashEl) dashEl.textContent = dashName;
+    // (dash-user-email span removed — account info lives in Account menu)
     if(aErr) throw aErr;
     if(sErr) throw sErr;
     STATE._classes = classes||[];
