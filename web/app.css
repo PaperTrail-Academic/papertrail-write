@@ -796,3 +796,100 @@ tbody td { padding: 0.7rem var(--space-md); vertical-align: middle; }
   justify-content: center;
   text-align: center;
 }
+
+/* ── ACCOUNT DROPDOWN ── */
+.account-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.13);
+  z-index: 9999;
+  overflow: hidden;
+}
+.account-dropdown-header {
+  padding: 0.85rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--pt-border);
+  background: var(--pt-light);
+}
+.account-dropdown-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--pt-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-dropdown-email {
+  font-size: var(--text-xs);
+  color: var(--pt-muted);
+  margin-top: 0.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-plan-badge {
+  display: inline-block;
+  margin-top: 0.45rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+}
+.account-plan-badge.trial {
+  background: #fff3cd;
+  color: #92600a;
+  border: 1px solid #f0c040;
+}
+.account-plan-badge.pro {
+  background: var(--pt-write-pale);
+  color: var(--pt-write);
+  border: 1px solid rgba(123,94,167,0.3);
+}
+.account-plan-badge.school {
+  background: #e8f5e9;
+  color: #2a7a3b;
+  border: 1px solid #81c784;
+}
+.account-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: var(--text-sm);
+  color: var(--pt-ink);
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  text-decoration: none;
+  line-height: 1.4;
+  transition: background var(--t), color var(--t);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.account-dropdown-item:hover {
+  background: var(--pt-write-pale);
+  color: var(--pt-write);
+  text-decoration: none;
+}
+.account-dropdown-item.danger {
+  color: var(--danger);
+}
+.account-dropdown-item.danger:hover {
+  background: #fdecea;
+  color: var(--danger);
+}
+.account-dropdown-divider {
+  height: 1px;
+  background: var(--pt-border);
+  margin: 0.2rem 0;
+}
