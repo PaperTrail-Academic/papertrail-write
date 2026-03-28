@@ -398,6 +398,106 @@ async function teacherLogout() {
   showScreen('landing'); toast('Signed out','default',2000);
 }
 
+// ── ACCOUNT MENU ──
+function toggleAccountMenu(btn) {
+  const dropdown = document.getElementById('account-menu-dropdown');
+  if (!dropdown) return;
+  if (dropdown.style.display !== 'none') {
+    dropdown.style.display = 'none';
+    return;
+  }
+  const plan = STATE._teacherPlan || 'trial';
+  const name = STATE._teacherDisplayName || '';
+  const email = STATE._teacherEmail || '';
+  const planLabel = plan === 'pro' ? 'Pro' : plan === 'school' ? 'School' : 'Trial';
+  const lsPortalUrl = 'https://app.lemonsqueezy.com/my-orders';
+  dropdown.innerHTML = `
+    <div class="account-dropdown-header">
+      ${name ? `<div class="account-dropdown-name">${esc(name)}</div>` : ''}
+      <div class="account-dropdown-email">${esc(email)}</div>
+      <span class="account-plan-badge ${plan}">${planLabel}</span>
+    </div>
+    ${plan !== 'trial' ? `
+      <a class="account-dropdown-item" href="${lsPortalUrl}" target="_blank" rel="noopener" onclick="closeAccountMenu()">Manage subscription →</a>
+      <div class="account-dropdown-divider"></div>
+    ` : `
+      <button class="account-dropdown-item" onclick="closeAccountMenu();openUpgradeModal('Upgrade to unlock unlimited sessions and classes.')">Upgrade to Pro</button>
+      <div class="account-dropdown-divider"></div>
+    `}
+    <button class="account-dropdown-item" onclick="closeAccountMenu();teacherLogout()">Sign out</button>
+    <button class="account-dropdown-item danger" onclick="closeAccountMenu();showDeleteAccountModal()">Delete account…</button>
+  `;
+  dropdown.style.display = 'block';
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!dropdown.contains(e.target) && e.target !== btn) {
+        dropdown.style.display = 'none';
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 0);
+}
+function closeAccountMenu() {
+  const dropdown = document.getElementById('account-menu-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+function showDeleteAccountModal() {
+  openModal(`
+    <div class="modal-header">
+      <h3 style="color:var(--danger)">Delete account</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:var(--space-sm)">This will permanently delete your account and all associated data — assignments, classes, and sessions. This cannot be undone.</p>
+      <p style="margin-bottom:var(--space-md);font-size:var(--text-sm);color:var(--pt-muted)">If you have an active Pro subscription, cancel it first via <a href="https://app.lemonsqueezy.com/my-orders" target="_blank" rel="noopener" style="color:var(--pt-write)">Manage subscription</a> to avoid future charges.</p>
+      <div class="form-group">
+        <label style="font-size:var(--text-sm)">Type <strong>DELETE</strong> to confirm</label>
+        <input class="form-input" id="delete-confirm-input" type="text" placeholder="DELETE" autocomplete="off"
+          oninput="document.getElementById('delete-account-btn').disabled = this.value !== 'DELETE'">
+      </div>
+      <div id="delete-account-status" class="status-msg"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="delete-account-btn" disabled onclick="doDeleteAccount()">Delete my account</button>
+    </div>
+  `);
+  setTimeout(() => document.getElementById('delete-confirm-input')?.focus(), 50);
+}
+
+async function doDeleteAccount() {
+  const btn = document.getElementById('delete-account-btn');
+  const statusEl = document.getElementById('delete-account-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+  if (statusEl) { statusEl.className = 'status-msg'; statusEl.textContent = ''; }
+  try {
+    const { data: sessionData } = await db.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Not authenticated');
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON,
+      },
+    });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Delete failed');
+    closeModal();
+    await db.auth.signOut();
+    STATE.teacher = null;
+    showScreen('landing');
+    toast('Account deleted. Sorry to see you go.', 'default', 5000);
+  } catch(err) {
+    if (statusEl) { statusEl.className = 'status-msg error'; statusEl.textContent = err.message; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
+  }
+}
+
+
 // ── GOOGLE OAUTH SIGN IN ──
 async function signInWithGoogle() {
   try {
@@ -1269,9 +1369,11 @@ async function loadDashboard() {
       db.from('assignments').select('*').eq('teacher_id',user.id).order('created_at',{ascending:false}),
       db.from('sessions').select('*').eq('teacher_id',user.id), // fetch ALL including ended
       db.from('classes').select('*').eq('teacher_id',user.id).order('name',{ascending:true}),
-      db.from('teachers').select('display_name').eq('id',user.id).maybeSingle(),
+      db.from('teachers').select('display_name, plan').eq('id',user.id).maybeSingle(),
     ]);
     STATE._teacherDisplayName = teacherRow?.display_name || null;
+    STATE._teacherPlan = teacherRow?.plan || 'trial';
+    STATE._teacherEmail = user.email || '';
     const dashName = STATE._teacherDisplayName || user.email;
     const dashEl = document.getElementById('dash-user-email');
     if (dashEl) dashEl.textContent = dashName;
