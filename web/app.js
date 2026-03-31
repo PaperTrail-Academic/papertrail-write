@@ -2083,6 +2083,7 @@ async function archiveAssignment(id, title) {
       document.getElementById('submissions-table-wrap').innerHTML = '<div class="empty-panel" style="padding:3rem">Select an assignment on the left to view its session report.</div>';
       document.getElementById('sub-count').textContent = 'Select an assignment to view its session report.';
       document.getElementById('export-btn').disabled = true;
+    document.getElementById('print-full-btn').disabled = true;
       if (STATE._lastSessions) delete STATE._lastSessions[id];
       renderSessionTabs();
     }
@@ -3112,8 +3113,8 @@ async function downloadReportZip(reportData) {
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    const slug=(reportData.session?.assignment_title||'report').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
-    a.download=`papertrail-write-${slug}.zip`;
+    const slug=(reportData.session?.assignment_title||'report').replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-+|-+$/g,'');
+    a.download=`${slug}.zip`;
     a.click(); URL.revokeObjectURL(url);
     if(btn){btn.textContent='↓ Downloaded ✓';btn.className='btn btn-success btn-block';}
   } catch(err){
@@ -3147,7 +3148,7 @@ async function doDeleteAssignment(id) {
     // Kill live monitoring immediately so badge and tab disappear before loadDashboard re-renders
     if(STATE.selectedAssignmentId===id) unsubscribeLiveSession();
     await db.from('assignments').delete().eq('id',id);
-    if(STATE.selectedAssignmentId===id){STATE.selectedAssignmentId=null;STATE.allSubmissions=[];document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">Select an assignment on the left.</div>';document.getElementById('sub-count').textContent='Select an assignment to view its session report.';document.getElementById('export-btn').disabled=true;}
+    if(STATE.selectedAssignmentId===id){STATE.selectedAssignmentId=null;STATE.allSubmissions=[];document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:3rem">Select an assignment on the left.</div>';document.getElementById('sub-count').textContent='Select an assignment to view its session report.';document.getElementById('export-btn').disabled=true;document.getElementById('print-full-btn').disabled=true;}
     // Scrub from _lastSessions so renderSessionTabs() sees it gone immediately
     if(STATE._lastSessions) delete STATE._lastSessions[id];
     renderSessionTabs();
@@ -3184,6 +3185,7 @@ async function loadSubmissions(assignmentId, _fromLiveRefresh) {
       document.getElementById('submissions-table-wrap').innerHTML = '<div class="empty-panel" style="padding:3rem">No sessions yet for this assignment.</div>';
       document.getElementById('sub-count').textContent = 'No session data.';
       document.getElementById('export-btn').disabled = true;
+    document.getElementById('print-full-btn').disabled = true;
       return;
     }
 
@@ -3208,6 +3210,7 @@ async function loadSubmissions(assignmentId, _fromLiveRefresh) {
     STATE.allSubmissions = data || [];
     renderSubmissionsTable(data || [], _fromLiveRefresh);
     document.getElementById('export-btn').disabled = !data || !data.length;
+    document.getElementById('print-full-btn').disabled = !data || !data.length;
   } catch(err) { toast('Failed to load session report: '+err.message,'error'); }
 }
 
@@ -3272,6 +3275,7 @@ async function switchSession(assignmentId, sessionId) {
   STATE.allSubmissions = data||[];
   renderSubmissionsTable(data||[]);
   document.getElementById('export-btn').disabled = !data||!data.length;
+  document.getElementById('print-full-btn').disabled = !data||!data.length;
 }
 
 // Compute time remaining (seconds) for a student from the teacher dashboard perspective.
@@ -3664,6 +3668,130 @@ async function teacherDismissHand(subId, displayName) {
 }
 
 // ── EXPORT ──
+
+
+
+// ── CONSOLIDATED SESSION PRINT REPORT ──
+async function printFullSessionReport() {
+  const subs = STATE.allSubmissions;
+  if (!subs || !subs.length) { toast('No submissions to print', 'warning'); return; }
+  try {
+    const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
+    const asgn = (STATE._assignments||[]).find(a => a.id === STATE.selectedAssignmentId);
+    if (!asgn) { toast('Assignment data not loaded', 'error'); return; }
+    const {data:teacherRow} = await db.from('teachers').select('display_name, email').eq('id', asgn.teacher_id).maybeSingle();
+    const teacherLabel = teacherRow?.display_name || teacherRow?.email || '—';
+    const ptLabels = {essay:'Open Writing', document_based:'Document-Based', source_analysis:'Source-Based'};
+    const ptLabel = ptLabels[asgn.prompt_type] || 'Open Writing';
+    const printDate = new Date().toLocaleString(undefined,{month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+    const studentPages = subs.map((sub, idx) => {
+      const log = sub.process_log || [];
+      const pastes = log.filter(e=>e.type==='paste');
+      const blurs = log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden');
+      const focuses = log.filter(e=>e.type==='window_focus');
+      const totalAway = focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
+      const wordDrops = log.filter(e=>e.type==='word_drop');
+      const extPastes = pastes.filter(e=>e.paste_origin!=='internal');
+      const intPastes = pastes.filter(e=>e.paste_origin==='internal');
+      const pasteFlag = extPastes.length>0&&intPastes.length>0
+        ? `${extPastes.length} external paste${extPastes.length>1?'s':''} · ${intPastes.length} internal`
+        : extPastes.length>0 ? `${extPastes.length} external paste${extPastes.length>1?'s':''}`
+        : intPastes.length>0 ? `${intPastes.length} internal paste${intPastes.length>1?'s':''}`
+        : pastes.length>0 ? `${pastes.length} paste event${pastes.length>1?'s':''}` : '';
+      const flags = [pasteFlag, blurs.length>0?`left window ${blurs.length}×`:'', wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
+      const logRows = log.length ? log.map(e => `
+        <tr>
+          <td>${labelForEvent(e.type, e)}</td>
+          <td>${formatTime(e.timestamp)}</td>
+          <td>${formatElapsed(e.elapsed_seconds)} in</td>
+          <td>${esc(getLogDetail(e))}</td>
+        </tr>`).join('') : '<tr><td colspan="4" style="color:#999">No events logged.</td></tr>';
+
+      return `<div class="student-page${idx > 0 ? ' page-break' : ''}">
+        <div class="student-header">
+          <div>
+            <div class="student-name">${esc(sub.student_display_name)}</div>
+            <div class="student-meta">${esc(sub.class_period||'—')} &nbsp;·&nbsp; ${sub.word_count||0} words &nbsp;·&nbsp; ${sub.is_submitted?'Submitted':'Not submitted'}${sub.submitted_at?' at '+formatTime(sub.submitted_at):''}</div>
+          </div>
+          <div class="student-stats">
+            <div>Away: ${totalAway>0?totalAway+'s':'—'}</div>
+            <div>Started: ${formatTime(sub.started_at)}</div>
+          </div>
+        </div>
+        ${flags ? `<div class="flags">${esc(flags)}</div>` : ''}
+        <div class="label">Essay</div>
+        <div class="essay-box"><div class="essay-text">${esc(sub.essay_text||'(no essay text)')}</div></div>
+        <div class="label">Process Log</div>
+        <table>
+          <thead><tr><th>Event</th><th>Time</th><th>Elapsed</th><th>Detail</th></tr></thead>
+          <tbody>${logRows}</tbody>
+        </table>
+        <div class="disclaimer">This process log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div>
+      </div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${esc(asgn.title)} — Session Report</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; color: #1a2235; background: #fff; font-size: 12px; }
+    .doc-header { padding: 2rem 3rem 1rem; border-bottom: 2px solid #1a2235; display: flex; justify-content: space-between; align-items: flex-start; }
+    .wordmark { font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600; }
+    .wordmark em { font-family: 'Lora', serif; font-style: italic; color: #7B5EA7; }
+    .doc-meta { font-size: 11px; color: #888; margin-top: 0.25rem; }
+    .print-date { font-size: 11px; color: #888; text-align: right; }
+    .assignment-block { padding: 1rem 3rem; background: #f7f7fa; border-bottom: 1px solid #e0e0e0; }
+    .assignment-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.2rem; }
+    .assignment-sub { font-size: 11px; color: #888; }
+    .prompt-box { margin-top: 0.75rem; background: #fff; border-left: 3px solid #7B5EA7; padding: 0.6rem 0.9rem; border-radius: 0 4px 4px 0; }
+    .prompt-text { font-family: 'Lora', serif; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+    .student-page { padding: 1.5rem 3rem; }
+    .page-break { page-break-before: always; border-top: 2px solid #e0e0e0; }
+    .student-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e0e0e0; }
+    .student-name { font-size: 1rem; font-weight: 600; }
+    .student-meta { font-size: 11px; color: #666; margin-top: 0.2rem; }
+    .student-stats { font-size: 11px; color: #888; text-align: right; line-height: 1.6; }
+    .label { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #888; margin-bottom: 0.3rem; margin-top: 0.75rem; }
+    .essay-box { border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; }
+    .essay-text { font-family: 'Lora', serif; font-size: 12px; line-height: 1.75; white-space: pre-wrap; }
+    .flags { font-size: 11px; color: #b45309; font-weight: 500; margin-bottom: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 0.75rem; }
+    thead th { font-size: 9px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #888; text-align: left; padding: 0.25rem 0.4rem; border-bottom: 1px solid #e0e0e0; }
+    tbody td { padding: 0.25rem 0.4rem; font-size: 11px; color: #444; border-bottom: 1px solid #f0f0f0; }
+    tbody tr:nth-child(even) { background: #f9f9fb; }
+    .disclaimer { font-size: 10px; color: #aaa; line-height: 1.5; border-top: 1px solid #e0e0e0; padding-top: 0.5rem; margin-top: 0.5rem; }
+    @media print { @page { margin: 1.5cm; } }
+  </style>
+</head>
+<body>
+  <div class="doc-header">
+    <div>
+      <div class="wordmark">PaperTrail <em>Write</em></div>
+      <div class="doc-meta">Teacher: ${esc(teacherLabel)} &nbsp;·&nbsp; ${subs.length} student${subs.length!==1?'s':''}</div>
+    </div>
+    <div class="print-date">Printed ${printDate}</div>
+  </div>
+  <div class="assignment-block">
+    <div class="assignment-title">${esc(asgn.title)}</div>
+    <div class="assignment-sub">${esc(ptLabel)}${sess?.join_code?' &nbsp;·&nbsp; Code: '+sess.join_code:''}${sess?.started_at?' &nbsp;·&nbsp; '+formatTime(sess.started_at):''}</div>
+    ${asgn.prompt_text ? `<div class="prompt-box"><div class="prompt-text">${esc(asgn.prompt_text)}</div></div>` : ''}
+  </div>
+  ${studentPages}
+</body>
+</html>`;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => w.print();
+  } catch(err) { toast('Print failed: ' + err.message, 'error'); }
+}
+
 async function exportTSV() {
   const subs=STATE.allSubmissions;
   if(!subs.length){toast('No submissions to export','warning');return;}
@@ -3683,7 +3811,7 @@ async function exportTSV() {
       zip.file('session-report.json',JSON.stringify({session:{assignment_id:STATE.selectedAssignmentId,session_id:STATE.selectedSessionId},submissions:subs},null,2));
       const blob=await zip.generateAsync({type:'blob'});
       const url=URL.createObjectURL(blob),a=document.createElement('a');
-      a.href=url;a.download=`session-report-${STATE.selectedSessionId||STATE.selectedAssignmentId}.zip`;a.click();URL.revokeObjectURL(url);
+      const _asgn2=(STATE._assignments||[]).find(a=>a.id===STATE.selectedAssignmentId);const _slug2=(_asgn2?.title||'session-report').replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-+|-+$/g,'');a.href=url;a.download=`${_slug2}.zip`;a.click();URL.revokeObjectURL(url);
       toast('Report ZIP downloaded','success',3000);
     } else {
       try{await navigator.clipboard.writeText(tsv);toast('Tab-separated data copied — paste into Google Sheets','success',4000);}
