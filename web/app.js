@@ -968,6 +968,9 @@ function enterWritingMode(savedText) {
   editor.setAttribute('autocorrect', sc2 ? 'on' : 'off');
   editor.setAttribute('autocapitalize', sc2 ? 'sentences' : 'off');
   editor.setAttribute('autocomplete', sc2 ? 'on' : 'off');
+  editor.setAttribute('data-gramm', sc2 ? 'true' : 'false');
+  editor.setAttribute('data-gramm_editor', sc2 ? 'true' : 'false');
+  editor.setAttribute('data-enable-grammarly', sc2 ? 'true' : 'false');
   STATE.lastTextLength = (savedText||'').length;
 
   if (STATE.isPreview) {
@@ -1266,7 +1269,9 @@ function attachProcessListeners(editor) {
   editor.addEventListener('paste',(e)=>{
     const p=(e.clipboardData||window.clipboardData).getData('text')||'';
     if(!p.length) return;
-    logEventImmediate('paste',{char_count:p.length,content_preview:p.slice(0,80)});
+    const trimmed=p.trim();
+    const isInternal = trimmed.length > 0 && editor.value.includes(trimmed);
+    logEventImmediate('paste',{char_count:p.length,content_preview:p.slice(0,80),paste_origin:isInternal?'internal':'external'});
     const cap=editor.value.length+p.length;
     setTimeout(()=>checkPasteThenDelete(cap),90000);
   });
@@ -2015,6 +2020,15 @@ async function archiveAssignment(id, title) {
   try {
     const {error} = await db.from('assignments').update({archived: true}).eq('id', id);
     if (error) throw error;
+    if (STATE.selectedAssignmentId === id) {
+      unsubscribeLiveSession();
+      STATE.selectedAssignmentId = null; STATE.allSubmissions = [];
+      document.getElementById('submissions-table-wrap').innerHTML = '<div class="empty-panel" style="padding:3rem">Select an assignment on the left to view its session report.</div>';
+      document.getElementById('sub-count').textContent = 'Select an assignment to view its session report.';
+      document.getElementById('export-btn').disabled = true;
+      if (STATE._lastSessions) delete STATE._lastSessions[id];
+      renderSessionTabs();
+    }
     toast(`"${title}" archived`, 'success');
     loadDashboard();
   } catch(err) { toast('Archive failed: '+err.message, 'error'); }
@@ -2487,7 +2501,8 @@ function renderSourcePanel() {
         <div class="split-resize-handle" id="split-resize-handle" title="Drag to resize"></div>
         <div class="essay-pane">
           <textarea id="essay-textarea" placeholder="Begin writing here…"
-            spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
+            spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"
+            data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></textarea>
         </div>
       </div>`;
 
@@ -2522,7 +2537,8 @@ function renderSourcePanel() {
         <div class="split-resize-handle" id="split-resize-handle" title="Drag to resize"></div>
         <div class="essay-pane">
           <textarea id="essay-textarea" placeholder="Begin writing here…"
-            spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
+            spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"
+            data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></textarea>
         </div>
       </div>`;
 
@@ -2544,6 +2560,9 @@ function renderSourcePanel() {
       essayTA.setAttribute('autocorrect', sc ? 'on' : 'off');
       essayTA.setAttribute('autocapitalize', sc ? 'sentences' : 'off');
       essayTA.setAttribute('autocomplete', sc ? 'on' : 'off');
+      essayTA.setAttribute('data-gramm', sc ? 'true' : 'false');
+      essayTA.setAttribute('data-gramm_editor', sc ? 'true' : 'false');
+      essayTA.setAttribute('data-enable-grammarly', sc ? 'true' : 'false');
     }
   }
 }
@@ -2824,7 +2843,7 @@ function subscribeToLiveSession(sessionId) {
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'submissions',filter:`session_id=eq.${sessionId}`},(payload)=>{
         if(STATE.allSubmissions&&STATE.allSubmissions.length){
           const idx=STATE.allSubmissions.findIndex(s=>s.id===payload.new.id);
-          if(idx>=0){STATE.allSubmissions[idx]={...STATE.allSubmissions[idx],...payload.new};renderSubmissionsTable(STATE.allSubmissions);}
+          if(idx>=0){STATE.allSubmissions[idx]={...STATE.allSubmissions[idx],...payload.new};renderSubmissionsTable(STATE.allSubmissions, true);}
           else{loadSubmissions(STATE.selectedAssignmentId);}
         }
       })
@@ -2857,7 +2876,7 @@ function subscribeToLiveSession(sessionId) {
         .maybeSingle();
       if(freshSess) STATE._lastSessions[STATE.selectedAssignmentId] = freshSess;
     }
-    loadSubmissions(STATE.selectedAssignmentId);
+    loadSubmissions(STATE.selectedAssignmentId, true);
   }, 15000);
 }
 
@@ -3093,8 +3112,8 @@ function selectAssignment(id){
   loadDashboard();
 }
 
-async function loadSubmissions(assignmentId) {
-  document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:2rem">Loading…</div>';
+async function loadSubmissions(assignmentId, _fromLiveRefresh) {
+  if (!_fromLiveRefresh) document.getElementById('submissions-table-wrap').innerHTML='<div class="empty-panel" style="padding:2rem">Loading…</div>';
   try {
     // Fetch ALL sessions for this assignment, newest first
     const {data:sessions, error:sErr} = await db.from('sessions')
@@ -3130,7 +3149,7 @@ async function loadSubmissions(assignmentId) {
       .order('started_at', {ascending: true});
     if (error) throw error;
     STATE.allSubmissions = data || [];
-    renderSubmissionsTable(data || []);
+    renderSubmissionsTable(data || [], _fromLiveRefresh);
     document.getElementById('export-btn').disabled = !data || !data.length;
   } catch(err) { toast('Failed to load session report: '+err.message,'error'); }
 }
@@ -3240,7 +3259,13 @@ function renderSubmissionsTable(submissions) {
     const log=s.process_log||[];
     const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
     const largePaste=pastes.some(e=>e.char_count>200),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
-    const notable=[pastes.length>0?`<span style="color:var(--warning)">paste ×${pastes.length}</span>`:'',largePaste?`<span style="color:var(--warning)">large paste</span>`:'',blurs.length>0?`<span style="color:var(--pt-muted)">left window ×${blurs.length}</span>`:'',wordDrops.length>0?`<span style="color:var(--pt-muted)">word drop</span>`:''].filter(Boolean).join(' &nbsp;');
+    const extPastes=pastes.filter(e=>e.paste_origin!=='internal'),intPastes=pastes.filter(e=>e.paste_origin==='internal');
+    const pasteLabel=extPastes.length>0&&intPastes.length>0
+      ?`<span style="color:var(--warning)">paste ×${extPastes.length} external</span> <span style="color:var(--pt-muted)">+${intPastes.length} internal</span>`
+      :extPastes.length>0?`<span style="color:var(--warning)">paste ×${extPastes.length} external</span>`
+      :intPastes.length>0?`<span style="color:var(--pt-muted)">paste ×${intPastes.length} internal</span>`
+      :pastes.length>0?`<span style="color:var(--warning)">paste ×${pastes.length}</span>`:'';
+    const notable=[pasteLabel,largePaste?`<span style="color:var(--warning)">large paste</span>`:'',blurs.length>0?`<span style="color:var(--pt-muted)">left window ×${blurs.length}</span>`:'',wordDrops.length>0?`<span style="color:var(--pt-muted)">word drop</span>`:''].filter(Boolean).join(' &nbsp;');
     const resubmitCell = s.is_submitted
       ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid #2a7a3b;background:#e8f5e9;color:#2a7a3b;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="unsubmitStudent('${s.id}','${esc(s.student_display_name)}')">↩ Return</button></td>`
       : `<td><span style="font-size:var(--text-xs);color:var(--pt-border)">—</span></td>`;
@@ -3307,16 +3332,23 @@ function renderSubmissionsTable(submissions) {
       toolbar.insertBefore(wrap, exportBtn);
     }
   }
+    const _scrollTop = wrapEl.scrollTop;
   wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events <button class="pt-tooltip-btn" onclick="showTooltip(this,'Notable events are: paste events (text pasted into the essay), focus loss (student left the window or switched tabs), and first keystroke timing. All are shown in the process log.')" title="About notable events">?</button></th><th>Time Away</th><th>Time Left</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  wrapEl.scrollTop = _scrollTop;
 }
 
 function toggleSubmissionDetail(subId){STATE.expandedSubId=(STATE.expandedSubId===subId)?null:subId;renderSubmissionsTable(STATE.allSubmissions);}
 
 function renderDetailRow(sub) {
   const log=sub.process_log||[];
-  const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
+  const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type, e)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
   const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
-  const flagText=[pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`:'',(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
+  const extPastes=pastes.filter(e=>e.paste_origin!=='internal'),intPastes=pastes.filter(e=>e.paste_origin==='internal');
+  const pasteFlag=extPastes.length>0&&intPastes.length>0?`${extPastes.length} external paste${extPastes.length>1?'s':''} · ${intPastes.length} internal`
+    :extPastes.length>0?`${extPastes.length} external paste${extPastes.length>1?'s':''}`
+    :intPastes.length>0?`${intPastes.length} internal paste${intPastes.length>1?'s':''}`
+    :pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`  :'';
+  const flagText=[pasteFlag,(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
   return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
@@ -3346,7 +3378,7 @@ async function printStudentReport(subId) {
 
     const logRows = log.length ? log.map(e => `
       <tr>
-        <td style="padding:0.3rem 0.5rem;white-space:nowrap;color:#555;font-size:11px">${labelForEvent(e.type)}</td>
+        <td style="padding:0.3rem 0.5rem;white-space:nowrap;color:#555;font-size:11px">${labelForEvent(e.type, e)}</td>
         <td style="padding:0.3rem 0.5rem;white-space:nowrap;color:#888;font-size:11px">${formatTime(e.timestamp)}</td>
         <td style="padding:0.3rem 0.5rem;white-space:nowrap;color:#888;font-size:11px">${formatElapsed(e.elapsed_seconds)} in</td>
         <td style="padding:0.3rem 0.5rem;color:#555;font-size:11px">${esc(getLogDetail(e))}</td>
@@ -3515,7 +3547,10 @@ function hasNotableEvent(log) {
   return false;
 }
 
-function labelForEvent(type) {
+function labelForEvent(type, entry) {
+  if (type === 'paste' && entry) {
+    return entry.paste_origin === 'internal' ? 'Paste — internal' : 'Paste — external';
+  }
   const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste'};
   return l[type]||type.replace(/_/g,' ');
 }
