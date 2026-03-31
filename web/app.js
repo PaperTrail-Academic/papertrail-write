@@ -994,11 +994,11 @@ function enterWritingMode(savedText) {
   attachProcessListeners(editor);
   STATE._visibilityHandler=()=>{
     if(document.hidden){STATE._blurStartTime=Date.now();logEventImmediate('window_blur',{content_preview:'Window left focus'});}
-    else if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEventImmediate('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}
+    else if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEventImmediate('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;STATE._lastFocusReturnTime=Date.now();}
   };
   document.addEventListener('visibilitychange',STATE._visibilityHandler);
   STATE._blurHandler=()=>{if(!document.hidden){STATE._blurStartTime=Date.now();logEventImmediate('window_blur',{content_preview:'Window left focus'});}};
-  STATE._focusHandler=()=>{if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEventImmediate('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;}};
+  STATE._focusHandler=()=>{if(STATE._blurStartTime){const s=Math.round((Date.now()-STATE._blurStartTime)/1000);logEventImmediate('window_focus',{char_count:s,content_preview:`Window returned — ${s}s away`});STATE._blurStartTime=null;STATE._lastFocusReturnTime=Date.now();}};
   window.addEventListener('blur',STATE._blurHandler);
   window.addEventListener('focus',STATE._focusHandler);
 
@@ -1324,12 +1324,12 @@ function attachProcessListeners(editor) {
     const trimmed=p.trim();
     const isInternal = trimmed.length > 0 && editor.value.includes(trimmed);
     logEventImmediate('paste',{char_count:p.length,content_preview:p.slice(0,80),paste_origin:isInternal?'internal':'external'});
+    if(p.length>200) logEventImmediate('large_paste',{char_count:p.length,paste_origin:isInternal?'internal':'external'});
     const cap=editor.value.length+p.length;
     setTimeout(()=>checkPasteThenDelete(cap),90000);
   });
   editor.addEventListener('input',()=>{
     const now=Date.now(),cur=editor.value.length,d=cur-STATE.lastTextLength;
-    if(d<=-100) logEvent('delete_burst',{char_count:Math.abs(d)});
     if(d>0) STATE.pendingBurstChars+=d;
     STATE.lastInputTime=now; STATE.lastTextLength=cur; updateWordCountDisplay();
   });
@@ -1342,8 +1342,12 @@ function checkPasteThenDelete(cap) {
 function checkBurstAndIdle() {
   if(STATE.isSubmitted) return;
   const now=Date.now(),ssi=STATE.lastInputTime?(now-STATE.lastInputTime)/1000:Infinity;
-  if(ssi>5&&STATE.pendingBurstChars>=50){logEvent('burst',{char_count:STATE.pendingBurstChars});STATE.pendingBurstChars=0;}
-  if(ssi>120&&!STATE.idleLogged&&STATE.lastInputTime){logEvent('idle',{content_preview:`Gap of ~${Math.round(ssi/60)} minute(s)`});STATE.idleLogged=true;}
+  // Idle: only log if student previously left and returned (context-aware)
+  const returnedRecently = STATE._lastFocusReturnTime && (now - STATE._lastFocusReturnTime) < 600000; // within 10 min
+  if(ssi>120&&!STATE.idleLogged&&STATE.lastInputTime&&returnedRecently){
+    logEvent('idle',{content_preview:`Gap of ~${Math.round(ssi/60)} minute(s) after returning to window`});
+    STATE.idleLogged=true;
+  }
   if(ssi<30&&STATE.idleLogged) STATE.idleLogged=false;
 }
 function logEvent(type,extras={}) {
@@ -1377,14 +1381,15 @@ async function submitEssay(isAuto=false) {
   clearInterval(STATE.timerInterval); clearInterval(STATE.autosaveInterval); clearInterval(STATE.burstCheckInterval);
   if(STATE._sessionPollInterval){clearInterval(STATE._sessionPollInterval);STATE._sessionPollInterval=null;}
   STATE.idleLogged = false;
+  STATE._lastFocusReturnTime = null;
   if(STATE._visibilityHandler) document.removeEventListener('visibilitychange',STATE._visibilityHandler);
   if(STATE._blurHandler) window.removeEventListener('blur',STATE._blurHandler);
   if(STATE._focusHandler) window.removeEventListener('focus',STATE._focusHandler);
   if(STATE._beforeUnloadHandler) { window.removeEventListener('beforeunload',STATE._beforeUnloadHandler); STATE._beforeUnloadHandler=null; }
-  if(STATE.pendingBurstChars>=50){logEvent('burst',{char_count:STATE.pendingBurstChars});STATE.pendingBurstChars=0;}
   const ta=document.getElementById('essay-textarea');
   const finalText=ta?ta.value:''; if(ta) ta.disabled=true;
   try {
+    logEvent('submitted',{content_preview:isAuto?'Auto-submitted (time expired)':'Student submitted manually'});
     await db.from('submissions').update({essay_text:finalText,word_count:countWords(finalText),process_log:STATE.processLog,submitted_at:new Date().toISOString(),is_submitted:true,last_saved_at:new Date().toISOString()}).eq('id',STATE.submissionId);
     showSubmittedScreen(finalText);
   } catch(err) {
@@ -1403,8 +1408,8 @@ function loadSubmittedScreen(sub) {
 }
 function renderProcessSummary(log) {
   const el=document.getElementById('process-summary'); if(!el) return;
-  const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur'),bursts=log.filter(e=>e.type==='burst');
-  el.innerHTML=`<h3>Your Writing Process</h3><div class="process-summary-items"><div class="ps-item"><strong>${bursts.length}</strong> typing burst${bursts.length!==1?'s':''}</div><div class="ps-item"><strong>${pastes.length}</strong> paste event${pastes.length!==1?'s':''}</div><div class="ps-item"><strong>${blurs.length}</strong> time${blurs.length!==1?'s':''} window left focus</div></div>`;
+  const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur');
+  el.innerHTML=`<h3>Your Writing Process</h3><div class="process-summary-items"><div class="ps-item"><strong>${pastes.length}</strong> paste event${pastes.length!==1?'s':''}</div><div class="ps-item"><strong>${blurs.length}</strong> time${blurs.length!==1?'s':''} window left focus</div></div>`;
 }
 async function copyToClipboard(silent=false) {
   const ta=document.getElementById('submitted-essay'); if(!ta) return;
@@ -3593,7 +3598,7 @@ async function confirmUnsubmit(subId) {
 
 function hasNotableEvent(log) {
   const pastes = log.filter(e => e.type === 'paste');
-  if (pastes.some(e => e.char_count > 200)) return true;
+  if (log.some(e => e.type === 'large_paste')) return true;
   if (log.some(e => e.type === 'paste_then_delete')) return true;
   const focuses = log.filter(e => e.type === 'window_focus');
   if (focuses.some(e => (e.char_count || 0) >= 120)) return true;
@@ -3604,7 +3609,7 @@ function labelForEvent(type, entry) {
   if (type === 'paste' && entry) {
     return entry.paste_origin === 'internal' ? 'Paste — internal' : 'Paste — external';
   }
-  const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste',teacher_note_received:'Note from teacher',teacher_note_dismissed:'Note dismissed',hand_raised:'Called teacher',hand_lowered:'Hand lowered'};
+  const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',idle:'Idle after return',large_paste:'Large paste',word_drop:'Word count drop',paste_then_delete:'Content removed after paste',submitted:'Essay submitted',teacher_note_received:'Note from teacher',teacher_note_dismissed:'Note dismissed',hand_raised:'Called teacher',hand_lowered:'Hand lowered'};
   return l[type]||type.replace(/_/g,' ');
 }
 function getLogDetail(entry) {
@@ -3613,9 +3618,9 @@ function getLogDetail(entry) {
     case 'window_blur': case 'tab_hidden': return 'Window left focus';
     case 'window_focus': return entry.content_preview||'Window returned';
     case 'first_keystroke': return entry.content_preview||'Writing began';
-    case 'burst': return `${entry.char_count} chars in one burst`;
-    case 'idle': return entry.content_preview||'Idle period';
-    case 'delete_burst': return `${entry.char_count} chars deleted`;
+    case 'idle': return entry.content_preview||'Idle period after returning to window';
+    case 'large_paste': return `${entry.char_count} chars — ${entry.paste_origin||'origin unknown'}`;
+    case 'submitted': return entry.content_preview||'Essay submitted';
     case 'word_drop': return entry.content_preview||'Word count dropped significantly';
     case 'paste_then_delete': return entry.content_preview||'Content removed shortly after paste';
     case 'teacher_note_received': return entry.content_preview ? `"${entry.content_preview}"` : 'Note received';
