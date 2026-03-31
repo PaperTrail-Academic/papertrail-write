@@ -127,6 +127,10 @@
   <div class="pause-banner" id="pause-banner">
     Your teacher has paused this session. This window will lock in <span class="pause-countdown" id="pause-countdown">60</span>s.
   </div>
+  <div class="teacher-note-banner" id="teacher-note-banner" style="display:none">
+    <span id="teacher-note-text"></span>
+    <button class="teacher-note-dismiss" onclick="dismissTeacherNote()">✕</button>
+  </div>
   <div class="prompt-panel" id="prompt-panel" style="display:none">
     <div class="prompt-panel-toggle open" id="prompt-toggle" onclick="togglePromptPanel()">
       <span class="prompt-panel-label" id="prompt-type-label">Assignment Prompt</span>
@@ -143,7 +147,10 @@
       data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></textarea>
   </div>
   <div class="writing-footer">
-    <span class="writing-footer-left">Work is saved automatically</span>
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <span class="writing-footer-left">Work is saved automatically</span>
+      <button class="btn-call-teacher" id="call-teacher-btn" onclick="toggleHandRaise()" title="Raise your hand to get your teacher's attention">🖐 Call Teacher</button>
+    </div>
     <div style="display:flex;gap:0.75rem;">
       <button class="btn btn-ghost" onclick="manualSave()">Save Now</button>
       <button class="btn btn-primary" onclick="confirmSubmit()" id="submit-btn">Submit Essay →</button>
