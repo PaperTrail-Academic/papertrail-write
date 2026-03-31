@@ -1023,6 +1023,47 @@ function togglePromptPanel() {
 }
 
 // ── SESSION PAUSE (STUDENT SIDE — REALTIME) ──
+// ── TEACHER NOTE (student side) ──
+function showTeacherNote(note) {
+  const banner = document.getElementById('teacher-note-banner');
+  const text = document.getElementById('teacher-note-text');
+  if (!banner || !text) return;
+  text.textContent = note;
+  banner.style.display = 'flex';
+  logEvent('teacher_note_received', {content_preview: note.slice(0, 80)});
+}
+function hideTeacherNote() {
+  const banner = document.getElementById('teacher-note-banner');
+  if (banner) banner.style.display = 'none';
+}
+async function dismissTeacherNote() {
+  hideTeacherNote();
+  logEvent('teacher_note_dismissed', {});
+  if (!STATE.submissionId) return;
+  await db.from('submissions').update({teacher_note: null}).eq('id', STATE.submissionId);
+}
+
+// ── HAND RAISE (student side) ──
+async function toggleHandRaise() {
+  if (!STATE.submissionId) return;
+  const btn = document.getElementById('call-teacher-btn');
+  const isRaised = btn && btn.classList.contains('raised');
+  if (isRaised) {
+    await lowerHandRaise(true);
+  } else {
+    await db.from('submissions').update({student_hand_raised: true}).eq('id', STATE.submissionId);
+    if (btn) { btn.classList.add('raised'); btn.textContent = '🖐 Calling…'; }
+    logEvent('hand_raised', {});
+  }
+}
+async function lowerHandRaise(logIt) {
+  if (!STATE.submissionId) return;
+  await db.from('submissions').update({student_hand_raised: false}).eq('id', STATE.submissionId);
+  const btn = document.getElementById('call-teacher-btn');
+  if (btn) { btn.classList.remove('raised'); btn.textContent = '🖐 Call Teacher'; }
+  if (logIt) logEvent('hand_lowered', {});
+}
+
 function subscribeToSessionPause() {
   const ch = db.channel('session-status-' + STATE.sessionId)
     .on('postgres_changes', {event:'UPDATE', schema:'public', table:'sessions', filter:`id=eq.${STATE.sessionId}`}, (payload) => {
@@ -1054,7 +1095,7 @@ function subscribeToSessionPause() {
 }
 
 function subscribeToSubmissionTime() {
-  if (!STATE.submissionId || !STATE.timeLimitSeconds) return;
+  if (!STATE.submissionId) return;
   const ch = db.channel('submission-time-' + STATE.submissionId)
     .on('postgres_changes', {event:'UPDATE', schema:'public', table:'submissions', filter:`id=eq.${STATE.submissionId}`}, (payload) => {
       // Per-student extra time
@@ -1064,6 +1105,17 @@ function subscribeToSubmissionTime() {
         const addedSecs = (newExtra - (oldExtra || 0)) * 60;
         if (addedSecs > 0) applyExtraTime(addedSecs);
       }
+      // Teacher note
+      const newNote = payload.new?.teacher_note;
+      const oldNote = payload.old?.teacher_note;
+      if (newNote !== oldNote) {
+        if (newNote) showTeacherNote(newNote);
+        else hideTeacherNote();
+      }
+      // Hand raise cleared by teacher
+      const newRaised = payload.new?.student_hand_raised;
+      const oldRaised = payload.old?.student_hand_raised;
+      if (oldRaised && !newRaised) lowerHandRaise(false);
       // Per-student pause/unpause
       const newPausedAt = payload.new?.student_paused_at;
       const oldPausedAt = payload.old?.student_paused_at;
@@ -3298,7 +3350,8 @@ function renderSubmissionsTable(submissions) {
     }
     const dupBadge = duplicateNames.has(s.student_display_name||'') ? ' <span style="font-size:10px;font-weight:600;color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:3px;padding:0.1rem 0.35rem;vertical-align:middle">⚠ duplicate name</span>' : '';
     const notableDot = hasNotableEvent(log) ? '<span title="Notable event recorded — expand row to view process log" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#b45309;margin-right:0.4rem;vertical-align:middle"></span>' : '';
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td>${notableDot}<strong>${esc(s.student_display_name)}</strong>${dupBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    const handBadge = s.student_hand_raised ? `<span class="hand-raise-badge" onclick="event.stopPropagation();teacherDismissHand('${s.id}','${esc(s.student_display_name)}')">🖐 Calling</span>` : '';
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td>${notableDot}<strong>${esc(s.student_display_name)}</strong>${dupBadge}${handBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   // Show Add Time button in toolbar only when session is active or paused
   const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
@@ -3349,7 +3402,7 @@ function renderDetailRow(sub) {
     :intPastes.length>0?`${intPastes.length} internal paste${intPastes.length>1?'s':''}`
     :pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`  :'';
   const flagText=[pasteFlag,(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
-  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
+  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;gap:0.5rem;padding:0.6rem 0;border-top:1px solid var(--pt-border)"><input id="note-input-${sub.id}" type="text" placeholder="Send a note to this student…" maxlength="200"   style="flex:1;font-family:'DM Sans',sans-serif;font-size:var(--text-xs);padding:0.35rem 0.6rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);outline:none"   onclick="event.stopPropagation()"   onkeydown="if(event.key==='Enter'){event.stopPropagation();sendTeacherNote('${sub.id}')}"   value="${sub.teacher_note?esc(sub.teacher_note):''}"><button class="btn btn-secondary" style="flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.7rem" onclick="event.stopPropagation();sendTeacherNote('${sub.id}')">Send</button>${sub.teacher_note?`<button class="btn btn-ghost" style="flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.7rem;color:var(--pt-muted)" onclick="event.stopPropagation();clearTeacherNote('${sub.id}')">Clear</button>`:''}</div><div style="margin-top:0.25rem;display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
 // ── PRINT STUDENT REPORT ──
@@ -3551,7 +3604,7 @@ function labelForEvent(type, entry) {
   if (type === 'paste' && entry) {
     return entry.paste_origin === 'internal' ? 'Paste — internal' : 'Paste — external';
   }
-  const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste'};
+  const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',burst:'Typing burst',idle:'Idle gap',delete_burst:'Large deletion',word_drop:'Word count drop',paste_then_delete:'Content removed after paste',teacher_note_received:'Note from teacher',teacher_note_dismissed:'Note dismissed',hand_raised:'Called teacher',hand_lowered:'Hand lowered'};
   return l[type]||type.replace(/_/g,' ');
 }
 function getLogDetail(entry) {
@@ -3565,8 +3618,44 @@ function getLogDetail(entry) {
     case 'delete_burst': return `${entry.char_count} chars deleted`;
     case 'word_drop': return entry.content_preview||'Word count dropped significantly';
     case 'paste_then_delete': return entry.content_preview||'Content removed shortly after paste';
+    case 'teacher_note_received': return entry.content_preview ? `"${entry.content_preview}"` : 'Note received';
+    case 'teacher_note_dismissed': return 'Student dismissed the note';
+    case 'hand_raised': return 'Student called for teacher attention';
+    case 'hand_lowered': return 'Student lowered their hand';
     default: return entry.content_preview||'';
   }
+}
+
+// ── TEACHER NOTE (teacher side) ──
+async function sendTeacherNote(subId) {
+  const input = document.getElementById('note-input-' + subId);
+  if (!input) return;
+  const note = input.value.trim();
+  if (!note) return;
+  try {
+    await db.from('submissions').update({teacher_note: note}).eq('id', subId);
+    // Update local state so re-render shows Clear button immediately
+    const idx = STATE.allSubmissions.findIndex(s => s.id === subId);
+    if (idx >= 0) STATE.allSubmissions[idx].teacher_note = note;
+    toast('Note sent', 'success', 2000);
+  } catch(err) { toast('Failed to send note: ' + err.message, 'error'); }
+}
+async function clearTeacherNote(subId) {
+  try {
+    await db.from('submissions').update({teacher_note: null}).eq('id', subId);
+    const idx = STATE.allSubmissions.findIndex(s => s.id === subId);
+    if (idx >= 0) STATE.allSubmissions[idx].teacher_note = null;
+    renderSubmissionsTable(STATE.allSubmissions);
+  } catch(err) { toast('Failed to clear note: ' + err.message, 'error'); }
+}
+async function teacherDismissHand(subId, displayName) {
+  try {
+    await db.from('submissions').update({student_hand_raised: false}).eq('id', subId);
+    const idx = STATE.allSubmissions.findIndex(s => s.id === subId);
+    if (idx >= 0) STATE.allSubmissions[idx].student_hand_raised = false;
+    renderSubmissionsTable(STATE.allSubmissions);
+    toast(`${displayName}'s hand lowered`, 'success', 2000);
+  } catch(err) { toast('Failed to dismiss: ' + err.message, 'error'); }
 }
 
 // ── EXPORT ──
