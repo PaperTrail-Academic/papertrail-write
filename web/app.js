@@ -1331,9 +1331,15 @@ function attachProcessListeners(editor) {
     const cap=editor.value.length+p.length;
     setTimeout(()=>checkPasteThenDelete(cap),90000);
   });
-  editor.addEventListener('input',()=>{
+  editor.addEventListener('input',(ev)=>{
     const now=Date.now(),cur=editor.value.length,d=cur-STATE.lastTextLength;
-
+    // Catch external text replacement (e.g. Grammarly desktop) — inputType is never
+    // 'insertReplacementText' during normal typing or paste (paste fires its own event)
+    const itype = ev.inputType||'';
+    if(itype==='insertReplacementText'||itype==='insertFromDrop') {
+      const preview = editor.value.slice(Math.max(0, editor.selectionStart-80), editor.selectionStart);
+      logEventImmediate('replacement_text',{char_count:Math.abs(d),content_preview:preview.slice(-80)});
+    }
     STATE.lastInputTime=now; STATE.lastTextLength=cur; updateWordCountDisplay();
   });
 }
@@ -3351,6 +3357,9 @@ function renderSubmissionsTable(submissions, _fromLiveRefresh) {
         ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid #b45309;background:#fff8f0;color:#b45309;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="unpauseStudent('${s.id}','${esc(s.student_display_name)}')">▶ Resume</button></td>`
         : `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid var(--pt-muted);background:var(--pt-bg);color:var(--pt-text);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="pauseStudent('${s.id}','${esc(s.student_display_name)}')">⏸ Pause</button></td>`
       : `<td></td>`;
+    const perStudentNoteCell = (liveSession && !s.is_submitted)
+      ? `<td onclick="event.stopPropagation()"><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid ${s.teacher_note?'#7B5EA7':'var(--pt-muted)'};background:${s.teacher_note?'#f3eeff':'var(--pt-bg)'};color:${s.teacher_note?'#7B5EA7':'var(--pt-muted)'};font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap" onclick="openSendNoteModal('${s.id}','${esc(s.student_display_name)}')">${s.teacher_note?'✉ Noted':'✉ Note'}</button></td>`
+      : `<td></td>`;
     // Time remaining cell
     const sessForTime = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
     const assignmentForTime = STATE._assignments && STATE._assignments.find(a => a.id === STATE.selectedAssignmentId);
@@ -3369,7 +3378,7 @@ function renderSubmissionsTable(submissions, _fromLiveRefresh) {
     const dupBadge = duplicateNames.has(s.student_display_name||'') ? ' <span style="font-size:10px;font-weight:600;color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:3px;padding:0.1rem 0.35rem;vertical-align:middle">⚠ duplicate name</span>' : '';
     const notableDot = hasNotableEvent(log) ? '<span title="Notable event recorded — expand row to view process log" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#b45309;margin-right:0.4rem;vertical-align:middle"></span>' : '';
     const handBadge = s.student_hand_raised ? `<span class="hand-raise-badge" onclick="event.stopPropagation();teacherDismissHand('${s.id}','${esc(s.student_display_name)}')">🖐 Calling</span>` : '';
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td>${notableDot}<strong>${esc(s.student_display_name)}</strong>${dupBadge}${handBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${liveSession && !s.is_submitted ? `<tr class="note-row" onclick="event.stopPropagation()"><td colspan="10" style="padding:0.25rem 0.6rem 0.4rem;background:#f9f7ff;border-bottom:1px solid var(--pt-border)"><div style="display:flex;align-items:center;gap:0.4rem"><input id="note-input-${s.id}" type="text" placeholder="Send a note…" maxlength="200" style="flex:1;font-family:'DM Sans',sans-serif;font-size:var(--text-xs);padding:0.25rem 0.5rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);outline:none;background:#fff" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){event.stopPropagation();sendTeacherNote('${s.id}')}" ><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid var(--pt-write);background:var(--pt-write-pale);color:var(--pt-write);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer" onclick="event.stopPropagation();sendTeacherNote('${s.id}')">Send</button>${s.teacher_note?`<span style="font-size:var(--text-xs);color:#7B5EA7;font-style:italic">✓ Note active</span><button style="font-size:var(--text-xs);padding:0.2rem 0.5rem;border-radius:var(--radius-sm);border:1px solid var(--pt-muted);background:none;color:var(--pt-muted);font-family:'DM Sans',sans-serif;cursor:pointer" onclick="event.stopPropagation();clearTeacherNote('${s.id}')">Clear</button>`:''} </div></td></tr>` : ''}${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td>${notableDot}<strong>${esc(s.student_display_name)}</strong>${dupBadge}${handBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}${perStudentNoteCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   // Show Add Time button in toolbar only when session is active or paused
   const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
@@ -3404,7 +3413,7 @@ function renderSubmissionsTable(submissions, _fromLiveRefresh) {
     }
   }
     const _scrollTop = wrapEl.scrollTop;
-  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events <button class="pt-tooltip-btn" onclick="showTooltip(this,'Notable events are: paste events (text pasted into the essay), focus loss (student left the window or switched tabs), and first keystroke timing. All are shown in the process log.')" title="About notable events">?</button></th><th>Time Away</th><th>Time Left</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  wrapEl.innerHTML=`<table><thead><tr><th>Student</th><th>Period</th><th>Words</th><th>Status</th><th>Submitted</th><th>Notable Events <button class="pt-tooltip-btn" onclick="showTooltip(this,'Notable events are: paste events (text pasted into the essay), focus loss (student left the window or switched tabs), and first keystroke timing. All are shown in the process log.')" title="About notable events">?</button></th><th>Time Away</th><th>Time Left</th><th></th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   wrapEl.scrollTop = _scrollTop;
 }
 
@@ -3420,7 +3429,7 @@ function renderDetailRow(sub) {
     :intPastes.length>0?`${intPastes.length} internal paste${intPastes.length>1?'s':''}`
     :pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`  :'';
   const flagText=[pasteFlag,(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
-  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:0.25rem;display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
+  return `<tr class="detail-row"><td class="detail-cell" colspan="11"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:0.25rem;display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
 // ── PRINT STUDENT REPORT ──
@@ -3612,6 +3621,7 @@ async function confirmUnsubmit(subId) {
 function hasNotableEvent(log) {
   const pastes = log.filter(e => e.type === 'paste');
   if (log.some(e => e.type === 'large_paste')) return true;
+  if (log.some(e => e.type === 'replacement_text')) return true;
   if (log.some(e => e.type === 'paste_then_delete')) return true;
   const focuses = log.filter(e => e.type === 'window_focus');
   if (focuses.some(e => (e.char_count || 0) >= 120)) return true;
@@ -3622,13 +3632,14 @@ function labelForEvent(type, entry) {
   if (type === 'paste' && entry) {
     return entry.paste_origin === 'internal' ? 'Paste — internal' : 'Paste — external';
   }
-  const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',idle:'Idle after return',large_paste:'Large paste',word_drop:'Word count drop',paste_then_delete:'Content removed after paste',submitted:'Essay submitted',teacher_note_received:'Note from teacher',teacher_note_dismissed:'Note dismissed',hand_raised:'Called teacher',hand_lowered:'Hand lowered'};
+  const l={paste:'Paste event',window_blur:'Left window',tab_hidden:'Left window',window_focus:'Returned to window',first_keystroke:'Writing began',idle:'Idle after return',large_paste:'Large paste',replacement_text:'Text replacement',word_drop:'Word count drop',paste_then_delete:'Content removed after paste',submitted:'Essay submitted',teacher_note_received:'Note from teacher',teacher_note_dismissed:'Note dismissed',hand_raised:'Called teacher',hand_lowered:'Hand lowered'};
   return l[type]||type.replace(/_/g,' ');
 }
 function getLogDetail(entry) {
   switch(entry.type){
     case 'paste': return `${entry.char_count} chars${entry.after_blur?' — after leaving window':''}${entry.content_preview?' — "'+entry.content_preview+'…"':''}`;
     case 'large_paste': return `${entry.char_count} chars — ${entry.paste_origin||'unknown origin'}${entry.after_blur?' — after leaving window':''}`;
+    case 'replacement_text': return `${entry.char_count} chars replaced without paste — ${entry.content_preview?'"'+entry.content_preview+'"':''}`;
     case 'window_blur': case 'tab_hidden': return 'Window left focus';
     case 'window_focus': return entry.content_preview||'Window returned';
     case 'first_keystroke': return entry.content_preview||'Writing began';
@@ -3645,17 +3656,41 @@ function getLogDetail(entry) {
 }
 
 // ── TEACHER NOTE (teacher side) ──
-async function sendTeacherNote(subId) {
-  const input = document.getElementById('note-input-' + subId);
-  if (!input) return;
-  const note = input.value.trim();
+function openSendNoteModal(subId, displayName) {
+  const sub = STATE.allSubmissions.find(s => s.id === subId);
+  const existing = sub?.teacher_note || '';
+  openModal(`<div class="modal-header">
+    <h3>Send Note to ${esc(displayName)}</h3>
+    <button class="modal-close" onclick="closeModal()">×</button>
+  </div>
+  <div class="modal-body">
+    <textarea id="note-modal-input" maxlength="200" placeholder="Write a note…" style="width:100%;height:80px;font-family:'DM Sans',sans-serif;font-size:var(--text-sm);padding:0.5rem 0.75rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);resize:none;outline:none">${esc(existing)}</textarea>
+    <div style="font-size:var(--text-xs);color:var(--pt-muted);margin-top:0.4rem">Student sees this as a dismissible banner. Sending replaces any existing note.</div>
+  </div>
+  <div class="modal-footer">
+    ${existing ? `<button class="btn btn-ghost" style="color:var(--pt-muted)" onclick="closeModal();clearTeacherNote('${subId}')">Clear Note</button>` : ''}
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="closeModal();sendTeacherNoteFromModal('${subId}')">Send</button>
+  </div>`);
+  setTimeout(() => {
+    const ta = document.getElementById('note-modal-input');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }, 50);
+}
+
+async function sendTeacherNoteFromModal(subId) {
+  const input = document.getElementById('note-modal-input');
+  const note = input ? input.value.trim() : '';
+  if (!note) return;
+  await sendTeacherNote(subId, note);
+}
+
+async function sendTeacherNote(subId, note) {
   if (!note) return;
   try {
     await db.from('submissions').update({teacher_note: note}).eq('id', subId);
-    // Update local state so re-render shows Clear button immediately
     const idx = STATE.allSubmissions.findIndex(s => s.id === subId);
     if (idx >= 0) STATE.allSubmissions[idx].teacher_note = note;
-    input.value = '';
     renderSubmissionsTable(STATE.allSubmissions, true);
     toast('Note sent', 'success', 2000);
   } catch(err) { toast('Failed to send note: ' + err.message, 'error'); }
