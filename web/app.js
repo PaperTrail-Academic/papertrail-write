@@ -11,7 +11,6 @@ const STATE = {
   timerInterval: null, autosaveInterval: null, processLog: [], isSubmitted: false,
   firstKeystrokeLogged: false, _blurStartTime: null,
   lastInputTime: null, lastTextLength: 0, lastWordCount: 0,
-  pendingBurstChars: 0, burstCheckInterval: null,
   _visibilityHandler: null, _blurHandler: null, _focusHandler: null, _beforeUnloadHandler: null,
   selectedAssignmentId: null, allSubmissions: [], expandedSubId: null,
   _expandedAssignments: new Set(),
@@ -987,7 +986,7 @@ function enterWritingMode(savedText) {
   if(STATE.timeLimitSeconds) startTimer();
   else document.getElementById('timer-display').textContent = '∞';
   STATE.autosaveInterval=setInterval(autosave,30000);
-  STATE.burstCheckInterval=setInterval(checkBurstAndIdle,3000);
+  setInterval(checkBurstAndIdle,3000);
   // Realtime fallback: poll session status every 30s in case Realtime drops on student side
   STATE._lastKnownSessionExtra = null;
   if (STATE.sessionId && !STATE.isPreview) STATE._sessionPollInterval = setInterval(pollSessionStatus, 30000);
@@ -1323,14 +1322,18 @@ function attachProcessListeners(editor) {
     if(!p.length) return;
     const trimmed=p.trim();
     const isInternal = trimmed.length > 0 && editor.value.includes(trimmed);
-    logEventImmediate('paste',{char_count:p.length,content_preview:p.slice(0,80),paste_origin:isInternal?'internal':'external'});
-    if(p.length>200) logEventImmediate('large_paste',{char_count:p.length,paste_origin:isInternal?'internal':'external'});
+    // Check if the last logged event was a window blur or return-from-blur (within 60s)
+    const lastEvent = STATE.processLog.length ? STATE.processLog[STATE.processLog.length-1] : null;
+    const lastEventAge = lastEvent ? (Date.now() - new Date(lastEvent.timestamp).getTime()) / 1000 : Infinity;
+    const afterBlur = lastEvent && (lastEvent.type==='window_blur'||lastEvent.type==='tab_hidden'||lastEvent.type==='window_focus') && lastEventAge < 60;
+    logEventImmediate('paste',{char_count:p.length,content_preview:p.slice(0,80),paste_origin:isInternal?'internal':'external',after_blur:afterBlur});
+    if(p.length>200) logEventImmediate('large_paste',{char_count:p.length,paste_origin:isInternal?'internal':'external',after_blur:afterBlur});
     const cap=editor.value.length+p.length;
     setTimeout(()=>checkPasteThenDelete(cap),90000);
   });
   editor.addEventListener('input',()=>{
     const now=Date.now(),cur=editor.value.length,d=cur-STATE.lastTextLength;
-    if(d>0) STATE.pendingBurstChars+=d;
+
     STATE.lastInputTime=now; STATE.lastTextLength=cur; updateWordCountDisplay();
   });
 }
@@ -1378,7 +1381,7 @@ async function autoSubmit(message){toast(message,'warning',6000);await submitEss
 async function submitEssay(isAuto=false) {
   if(STATE.isSubmitted) return;
   STATE.isSubmitted=true;
-  clearInterval(STATE.timerInterval); clearInterval(STATE.autosaveInterval); clearInterval(STATE.burstCheckInterval);
+  clearInterval(STATE.timerInterval); clearInterval(STATE.autosaveInterval);
   if(STATE._sessionPollInterval){clearInterval(STATE._sessionPollInterval);STATE._sessionPollInterval=null;}
   STATE.idleLogged = false;
   STATE._lastFocusReturnTime = null;
@@ -3105,7 +3108,7 @@ async function downloadReportZip(reportData) {
     const headers=['Student Name','Period','Word Count','Submitted','Submitted At','Paste Events','Large Pastes (200+)','Times Window Left Focus','Total Time Away (seconds)','Time to First Keystroke (seconds)','Essay Text'];
     const rows=(reportData.submissions||[]).map(s=>{
       const log=s.process_log||[];
-      const pastes=log.filter(e=>e.type==='paste'),largePaste=pastes.filter(e=>e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0),firstKey=log.find(e=>e.type==='first_keystroke');
+      const pastes=log.filter(e=>e.type==='paste'),largePaste=log.filter(e=>e.type==='large_paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0),firstKey=log.find(e=>e.type==='first_keystroke');
       return [s.student_display_name,s.class_period||'',s.word_count||0,s.is_submitted?'Yes':'No',s.submitted_at?formatTime(s.submitted_at):'',pastes.length,largePaste.length,blurs.length,totalAway,firstKey?firstKey.elapsed_seconds:'',(s.essay_text||'').replace(/\t/g,' ').replace(/\n/g,' ↵ ')].join('\t');
     });
     zip.file('session-report.tsv',[headers.join('\t'),...rows].join('\n'));
@@ -3306,7 +3309,12 @@ function formatTimeRemaining(secs) {
   return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function renderSubmissionsTable(submissions) {
+function renderSubmissionsTable(submissions, _fromLiveRefresh) {
+  // If a row is expanded and this is a background refresh, just buffer data and bail
+  if (_fromLiveRefresh && STATE.expandedSubId) {
+    STATE.allSubmissions = submissions;
+    return;
+  }
   const countEl=document.getElementById('sub-count'),wrapEl=document.getElementById('submissions-table-wrap');
   if(!submissions.length){countEl.textContent='No submissions yet.';wrapEl.innerHTML='<div class="empty-panel" style="padding:3rem">No submissions yet for this session.</div>';return;}
   const submitted=submissions.filter(s=>s.is_submitted).length;
@@ -3319,11 +3327,12 @@ function renderSubmissionsTable(submissions) {
   const rows=submissions.map(s=>{
     const log=s.process_log||[];
     const pastes=log.filter(e=>e.type==='paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
-    const largePaste=pastes.some(e=>e.char_count>200),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
+    const largePaste=log.some(e=>e.type==='large_paste'),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
     const extPastes=pastes.filter(e=>e.paste_origin!=='internal'),intPastes=pastes.filter(e=>e.paste_origin==='internal');
+    const blurPastes=pastes.filter(e=>e.after_blur);
     const pasteLabel=extPastes.length>0&&intPastes.length>0
-      ?`<span style="color:var(--warning)">paste ×${extPastes.length} external</span> <span style="color:var(--pt-muted)">+${intPastes.length} internal</span>`
-      :extPastes.length>0?`<span style="color:var(--warning)">paste ×${extPastes.length} external</span>`
+      ?`<span style="color:var(--warning)">paste ×${extPastes.length} external${blurPastes.length>0?` (${blurPastes.length} after window blur)`:''}</span> <span style="color:var(--pt-muted)">+${intPastes.length} internal</span>`
+      :extPastes.length>0?`<span style="color:var(--warning)">paste ×${extPastes.length} external${blurPastes.length>0?` (${blurPastes.length} after window blur)`:''}</span>`
       :intPastes.length>0?`<span style="color:var(--pt-muted)">paste ×${intPastes.length} internal</span>`
       :pastes.length>0?`<span style="color:var(--warning)">paste ×${pastes.length}</span>`:'';
     const notable=[pasteLabel,largePaste?`<span style="color:var(--warning)">large paste</span>`:'',blurs.length>0?`<span style="color:var(--pt-muted)">left window ×${blurs.length}</span>`:'',wordDrops.length>0?`<span style="color:var(--pt-muted)">word drop</span>`:''].filter(Boolean).join(' &nbsp;');
@@ -3360,7 +3369,7 @@ function renderSubmissionsTable(submissions) {
     const dupBadge = duplicateNames.has(s.student_display_name||'') ? ' <span style="font-size:10px;font-weight:600;color:#b45309;background:#fff8e1;border:1px solid #f0c040;border-radius:3px;padding:0.1rem 0.35rem;vertical-align:middle">⚠ duplicate name</span>' : '';
     const notableDot = hasNotableEvent(log) ? '<span title="Notable event recorded — expand row to view process log" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#b45309;margin-right:0.4rem;vertical-align:middle"></span>' : '';
     const handBadge = s.student_hand_raised ? `<span class="hand-raise-badge" onclick="event.stopPropagation();teacherDismissHand('${s.id}','${esc(s.student_display_name)}')">🖐 Calling</span>` : '';
-    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td>${notableDot}<strong>${esc(s.student_display_name)}</strong>${dupBadge}${handBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
+    return `<tr onclick="toggleSubmissionDetail('${s.id}')"><td>${notableDot}<strong>${esc(s.student_display_name)}</strong>${dupBadge}${handBadge}</td><td>${esc(s.class_period||'—')}</td><td style="font-family:'DM Mono',monospace">${s.word_count||0}</td><td>${s.is_submitted?`<span class="submitted-yes">✓ Submitted</span>`:`<span class="submitted-no">In progress</span>`}</td><td style="font-size:var(--text-xs);color:var(--pt-muted)">${s.submitted_at?formatTime(s.submitted_at):'—'}</td><td style="font-size:var(--text-xs)">${notable||'<span style="color:var(--pt-muted)">—</span>'}</td><td style="color:var(--pt-muted);font-size:var(--text-xs);font-family:'DM Mono',monospace">${totalAway>0?totalAway+'s':'—'}</td>${timeRemainingCell}${resubmitCell}${perStudentTimeCell}${perStudentPauseCell}</tr>${liveSession && !s.is_submitted ? `<tr class="note-row" onclick="event.stopPropagation()"><td colspan="10" style="padding:0.25rem 0.6rem 0.4rem;background:#f9f7ff;border-bottom:1px solid var(--pt-border)"><div style="display:flex;align-items:center;gap:0.4rem"><input id="note-input-${s.id}" type="text" placeholder="Send a note…" maxlength="200" style="flex:1;font-family:'DM Sans',sans-serif;font-size:var(--text-xs);padding:0.25rem 0.5rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);outline:none;background:#fff" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){event.stopPropagation();sendTeacherNote('${s.id}')}" ><button style="font-size:var(--text-xs);padding:0.2rem 0.6rem;border-radius:var(--radius-sm);border:1.5px solid var(--pt-write);background:var(--pt-write-pale);color:var(--pt-write);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer" onclick="event.stopPropagation();sendTeacherNote('${s.id}')">Send</button>${s.teacher_note?`<span style="font-size:var(--text-xs);color:#7B5EA7;font-style:italic">✓ Note active</span><button style="font-size:var(--text-xs);padding:0.2rem 0.5rem;border-radius:var(--radius-sm);border:1px solid var(--pt-muted);background:none;color:var(--pt-muted);font-family:'DM Sans',sans-serif;cursor:pointer" onclick="event.stopPropagation();clearTeacherNote('${s.id}')">Clear</button>`:''} </div></td></tr>` : ''}${STATE.expandedSubId===s.id?renderDetailRow(s):''}`;
   }).join('');
   // Show Add Time button in toolbar only when session is active or paused
   const sess = STATE._lastSessions && STATE._lastSessions[STATE.selectedAssignmentId];
@@ -3404,14 +3413,14 @@ function toggleSubmissionDetail(subId){STATE.expandedSubId=(STATE.expandedSubId=
 function renderDetailRow(sub) {
   const log=sub.process_log||[];
   const logHtml=log.length?log.map(e=>`<div class="log-entry ${e.type}"><span class="log-type">${labelForEvent(e.type, e)}</span><span class="log-time"><span class="log-wall">${formatTime(e.timestamp)}</span><span class="log-elapsed">${formatElapsed(e.elapsed_seconds)} into session</span></span><span class="log-detail">${esc(getLogDetail(e))}</span></div>`).join(''):'<div style="color:var(--pt-muted);font-size:var(--text-sm);padding:0.5rem">No events logged.</div>';
-  const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='paste'&&e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
+  const pastes=log.filter(e=>e.type==='paste'),largePaste=log.some(e=>e.type==='large_paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),wordDrops=log.filter(e=>e.type==='word_drop');
   const extPastes=pastes.filter(e=>e.paste_origin!=='internal'),intPastes=pastes.filter(e=>e.paste_origin==='internal');
   const pasteFlag=extPastes.length>0&&intPastes.length>0?`${extPastes.length} external paste${extPastes.length>1?'s':''} · ${intPastes.length} internal`
     :extPastes.length>0?`${extPastes.length} external paste${extPastes.length>1?'s':''}`
     :intPastes.length>0?`${intPastes.length} internal paste${intPastes.length>1?'s':''}`
     :pastes.length>0?`${pastes.length} paste event${pastes.length>1?'s':''}`  :'';
   const flagText=[pasteFlag,(largePaste?'paste over 200 chars':''),blurs.length>0?`left window ${blurs.length}×`:'',wordDrops.length>0?'notable word count drop':''].filter(Boolean).join(' · ');
-  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:var(--space-sm);display:flex;align-items:center;gap:0.5rem;padding:0.6rem 0;border-top:1px solid var(--pt-border)"><input id="note-input-${sub.id}" type="text" placeholder="Send a note to this student…" maxlength="200"   style="flex:1;font-family:'DM Sans',sans-serif;font-size:var(--text-xs);padding:0.35rem 0.6rem;border:1.5px solid var(--pt-border);border-radius:var(--radius-sm);outline:none"   onclick="event.stopPropagation()"   onkeydown="if(event.key==='Enter'){event.stopPropagation();sendTeacherNote('${sub.id}')}"   value="${sub.teacher_note?esc(sub.teacher_note):''}"><button class="btn btn-secondary" style="flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.7rem" onclick="event.stopPropagation();sendTeacherNote('${sub.id}')">Send</button>${sub.teacher_note?`<button class="btn btn-ghost" style="flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.7rem;color:var(--pt-muted)" onclick="event.stopPropagation();clearTeacherNote('${sub.id}')">Clear</button>`:''}</div><div style="margin-top:0.25rem;display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
+  return `<tr class="detail-row"><td class="detail-cell" colspan="10"><div class="detail-header"><div><strong>${esc(sub.student_display_name)}</strong><span style="color:var(--pt-muted);font-size:var(--text-xs);margin-left:0.5rem">${sub.word_count||0} words · Started ${formatTime(sub.started_at)}</span></div><div style="font-size:var(--text-xs);color:var(--pt-muted)">${flagText||'No notable events'}</div></div><div class="detail-essay">${esc(sub.essay_text||'(no essay text)')}</div><div class="process-log-title">Process Log <button class=\"pt-tooltip-btn\" onclick=\"showTooltip(this,'The process log records every behavioural event with a timestamp — when the student started typing, any paste events, and any time they left the writing window.');\" title=\"About the process log\">?</button></div><div class="process-log-list">${logHtml}</div><div style="margin-top:0.25rem;display:flex;align-items:center;justify-content:space-between"><div class="disclaimer" style="flex:1">This log is one input among many. Educator judgment governs all interpretation and any subsequent conversation.</div><button class="btn btn-secondary" style="margin-left:1rem;flex-shrink:0;font-size:var(--text-xs);padding:0.35rem 0.8rem" onclick="event.stopPropagation();printStudentReport('${sub.id}')">🖨 Print Report</button></div></td></tr>`;
 }
 
 // ── PRINT STUDENT REPORT ──
@@ -3433,7 +3442,7 @@ async function printStudentReport(subId) {
     const log = sub.process_log || [];
     const pastes = log.filter(e=>e.type==='paste');
     const blurs = log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden');
-    const largePaste = pastes.some(e=>e.char_count>200);
+    const largePaste = log.some(e=>e.type==='large_paste');
     const wordDrops = log.filter(e=>e.type==='word_drop');
     const focuses = log.filter(e=>e.type==='window_focus');
     const totalAway = focuses.reduce((sum,e)=>sum+(e.char_count||0),0);
@@ -3618,12 +3627,12 @@ function labelForEvent(type, entry) {
 }
 function getLogDetail(entry) {
   switch(entry.type){
-    case 'paste': return `${entry.char_count} chars${entry.content_preview?' — "'+entry.content_preview+'…"':''}`;
+    case 'paste': return `${entry.char_count} chars${entry.after_blur?' — after leaving window':''}${entry.content_preview?' — "'+entry.content_preview+'…"':''}`;
+    case 'large_paste': return `${entry.char_count} chars — ${entry.paste_origin||'unknown origin'}${entry.after_blur?' — after leaving window':''}`;
     case 'window_blur': case 'tab_hidden': return 'Window left focus';
     case 'window_focus': return entry.content_preview||'Window returned';
     case 'first_keystroke': return entry.content_preview||'Writing began';
     case 'idle': return entry.content_preview||'Idle period after returning to window';
-    case 'large_paste': return `${entry.char_count} chars — ${entry.paste_origin||'origin unknown'}`;
     case 'submitted': return entry.content_preview||'Essay submitted';
     case 'word_drop': return entry.content_preview||'Word count dropped significantly';
     case 'paste_then_delete': return entry.content_preview||'Content removed shortly after paste';
@@ -3646,6 +3655,8 @@ async function sendTeacherNote(subId) {
     // Update local state so re-render shows Clear button immediately
     const idx = STATE.allSubmissions.findIndex(s => s.id === subId);
     if (idx >= 0) STATE.allSubmissions[idx].teacher_note = note;
+    input.value = '';
+    renderSubmissionsTable(STATE.allSubmissions, true);
     toast('Note sent', 'success', 2000);
   } catch(err) { toast('Failed to send note: ' + err.message, 'error'); }
 }
@@ -3801,7 +3812,7 @@ async function exportTSV() {
     const headers=['Student Name','Period','Word Count','Submitted','Submitted At','Paste Events','Large Pastes (200+)','Times Window Left Focus','Total Time Away (seconds)','Time to First Keystroke (seconds)','Essay Text'];
     const rows=subs.map(s=>{
       const log=s.process_log||[];
-      const pastes=log.filter(e=>e.type==='paste'),largePaste=pastes.filter(e=>e.char_count>200),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0),firstKey=log.find(e=>e.type==='first_keystroke');
+      const pastes=log.filter(e=>e.type==='paste'),largePaste=log.filter(e=>e.type==='large_paste'),blurs=log.filter(e=>e.type==='window_blur'||e.type==='tab_hidden'),focuses=log.filter(e=>e.type==='window_focus'),totalAway=focuses.reduce((sum,e)=>sum+(e.char_count||0),0),firstKey=log.find(e=>e.type==='first_keystroke');
       return [s.student_display_name,s.class_period||'',s.word_count||0,s.is_submitted?'Yes':'No',s.submitted_at?formatTime(s.submitted_at):'',pastes.length,largePaste.length,blurs.length,totalAway,firstKey?firstKey.elapsed_seconds:'',(s.essay_text||'').replace(/\t/g,' ').replace(/\n/g,' ↵ ')].join('\t');
     });
     const tsv=[headers.join('\t'),...rows].join('\n');
