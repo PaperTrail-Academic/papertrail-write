@@ -615,6 +615,8 @@ async function openDrivePicker(idx) {
     ].join(',');
 
     // My Drive tab — files owned by the user
+    // Open in last-used folder if remembered
+    const _lastFolderId = localStorage.getItem('pt_drive_last_folder_id');
     const myDriveView = new google.picker.DocsView()
       .setLabel('My Drive')
       .setOwnedByMe(true)
@@ -622,6 +624,7 @@ async function openDrivePicker(idx) {
       .setSelectFolderEnabled(false)
       .setMode(google.picker.DocsViewMode.LIST)
       .setMimeTypes(mimeFilter);
+    if (_lastFolderId) myDriveView.setParent(_lastFolderId);
 
     // Shared with me tab — files shared by others
     const sharedView = new google.picker.DocsView()
@@ -670,6 +673,9 @@ async function _onDriveFilePicked(idx, data, token) {
     toast('Please select a file, not a folder.', 'warning', 3000);
     return;
   }
+
+  // Remember the parent folder so next Picker open lands here automatically
+  if (doc.parentId) localStorage.setItem('pt_drive_last_folder_id', doc.parentId);
 
   const name = doc.name || doc.id;
   toast(`Downloading "${name}" from Drive…`, 'default', 3000);
