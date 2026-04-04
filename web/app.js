@@ -616,7 +616,6 @@ async function openDrivePicker(idx) {
     const view = new google.picker.DocsView()
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
-      .setParent('root')
       .setMimeTypes(allMimes);
 
     const picker = new google.picker.PickerBuilder()
