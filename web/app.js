@@ -557,14 +557,14 @@ function _loadGapiPicker(callback) {
   gapi.load('picker', () => { _gapiPickerReady = true; callback(); });
 }
 
-// Triggers incremental Google OAuth to add drive.file scope
+// Triggers incremental Google OAuth to add drive.readonly scope
 async function requestDriveScope() {
   try {
     const { error } = await db.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
-        scopes: 'openid email profile https://www.googleapis.com/auth/drive.file',
+        scopes: 'openid email profile https://www.googleapis.com/auth/drive.readonly',
         queryParams: { access_type: 'offline', prompt: 'consent' },
       }
     });
@@ -615,6 +615,8 @@ async function openDrivePicker(idx) {
 
     const view = new google.picker.DocsView()
       .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setParent('root')
       .setMimeTypes(allMimes);
 
     const picker = new google.picker.PickerBuilder()
