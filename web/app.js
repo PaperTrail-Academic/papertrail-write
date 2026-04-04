@@ -711,6 +711,16 @@ async function _onDriveFilePicked(idx, data, token) {
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` }
     });
+
+    // 401/403/404 means stale or invalid Drive token — clear and re-auth automatically
+    if (resp.status === 401 || resp.status === 403 || resp.status === 404) {
+      sessionStorage.removeItem('pt_drive_granted');
+      if (confirm('Your Google Drive access has expired. Click OK to reconnect — you\'ll be brought right back.')) {
+        await requestDriveScope();
+      }
+      return;
+    }
+
     if (!resp.ok) throw new Error(`Drive download failed (${resp.status})`);
 
     const blob = await resp.blob();
