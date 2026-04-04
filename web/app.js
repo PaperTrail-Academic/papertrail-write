@@ -607,7 +607,8 @@ async function openDrivePicker(idx) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   _loadGapiPicker(() => {
-    const mimeFilter = [
+    // Selectable types — unsupported files show greyed out rather than hidden
+    const selectableMimes = [
       'application/pdf',
       'image/jpeg','image/png','image/webp','image/gif',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -622,8 +623,7 @@ async function openDrivePicker(idx) {
       .setOwnedByMe(true)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
-      .setMode(google.picker.DocsViewMode.LIST)
-      .setMimeTypes(mimeFilter);
+      .setMode(google.picker.DocsViewMode.LIST);
     if (_lastFolderId) myDriveView.setParent(_lastFolderId);
 
     // Shared with me tab — files shared by others
@@ -632,8 +632,7 @@ async function openDrivePicker(idx) {
       .setOwnedByMe(false)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
-      .setMode(google.picker.DocsViewMode.LIST)
-      .setMimeTypes(mimeFilter);
+      .setMode(google.picker.DocsViewMode.LIST);
 
     // Shared drives tab — must be separate, cannot combine with setOwnedByMe or setParent
     const sharedDrivesView = new google.picker.DocsView()
@@ -641,13 +640,13 @@ async function openDrivePicker(idx) {
       .setEnableDrives(true)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
-      .setMode(google.picker.DocsViewMode.LIST)
-      .setMimeTypes(mimeFilter);
+      .setMode(google.picker.DocsViewMode.LIST);
 
     const picker = new google.picker.PickerBuilder()
       .addView(myDriveView)
       .addView(sharedView)
       .addView(sharedDrivesView)
+      .setSelectableMimeTypes(selectableMimes)
       .setOAuthToken(token)
       .setOrigin(window.location.origin)
       .setAppId('18964593029')
