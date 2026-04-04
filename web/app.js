@@ -660,22 +660,44 @@ async function _onDriveFilePicked(idx, data, token) {
   const doc = data.docs[0];
   if (!doc) return;
 
-  const src = STATE.formSources[idx];
-  const name = doc.name || doc.id;
+  // Guard: folders and shortcuts are not downloadable
+  const nonDownloadable = [
+    'application/vnd.google-apps.folder',
+    'application/vnd.google-apps.shortcut',
+  ];
+  if (nonDownloadable.includes(doc.mimeType)) {
+    toast('Please select a file, not a folder.', 'warning', 3000);
+    return;
+  }
 
+  const name = doc.name || doc.id;
   toast(`Downloading "${name}" from Drive…`, 'default', 3000);
+
+  // Google Workspace native types that need export, not alt=media
+  const exportMap = {
+    'application/vnd.google-apps.document':
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.google-apps.spreadsheet':
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.google-apps.presentation':
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  };
 
   try {
     let url, contentType, fileName;
+    const exportMime = exportMap[doc.mimeType];
 
-    if (doc.mimeType === 'application/vnd.google-apps.document') {
-      // Google Doc → export as DOCX
-      url = `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document`;
-      contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      fileName = name.endsWith('.docx') ? name : name + '.docx';
+    if (exportMime) {
+      // Google Workspace file — export as Office format
+      url = `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=${encodeURIComponent(exportMime)}&supportsAllDrives=true`;
+      contentType = exportMime;
+      const ext = exportMime.includes('wordprocessing') ? '.docx'
+                : exportMime.includes('spreadsheet') ? '.xlsx'
+                : '.pptx';
+      fileName = name.endsWith(ext) ? name : name + ext;
     } else {
-      // Native file — download directly
-      url = `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`;
+      // Native file (PDF, image, DOCX etc) — download directly
+      url = `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media&supportsAllDrives=true`;
       contentType = doc.mimeType;
       fileName = name;
     }
