@@ -557,14 +557,14 @@ function _loadGapiPicker(callback) {
   gapi.load('picker', () => { _gapiPickerReady = true; callback(); });
 }
 
-// Triggers incremental Google OAuth to add drive.readonly scope
+// Triggers incremental Google OAuth to add drive.file scope
 async function requestDriveScope() {
   try {
     const { error } = await db.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
-        scopes: 'openid email profile https://www.googleapis.com/auth/drive.readonly',
+        scopes: 'openid email profile https://www.googleapis.com/auth/drive.file',
         queryParams: { access_type: 'offline', prompt: 'consent' },
       }
     });
