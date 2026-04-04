@@ -557,14 +557,14 @@ function _loadGapiPicker(callback) {
   gapi.load('picker', () => { _gapiPickerReady = true; callback(); });
 }
 
-// Triggers incremental Google OAuth to add drive.readonly scope
+// Triggers incremental Google OAuth to add drive.file scope
 async function requestDriveScope() {
   try {
     const { error } = await db.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
-        scopes: 'openid email profile https://www.googleapis.com/auth/drive.readonly',
+        scopes: 'openid email profile https://www.googleapis.com/auth/drive.file',
         queryParams: { access_type: 'offline', prompt: 'consent' },
       }
     });
@@ -605,22 +605,44 @@ async function openDrivePicker(idx) {
   }
 
   _loadGapiPicker(() => {
-    // Show all supported file types — type is inferred from extension after selection
-    const allMimes = [
+    const mimeFilter = [
       'application/pdf',
       'image/jpeg','image/png','image/webp','image/gif',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.google-apps.document', // Google Docs → export as DOCX
+      'application/vnd.google-apps.document',
     ].join(',');
 
-    const view = new google.picker.DocsView()
+    // My Drive tab — files owned by the user
+    const myDriveView = new google.picker.DocsView()
+      .setLabel('My Drive')
+      .setOwnedByMe(true)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
       .setMode(google.picker.DocsViewMode.LIST)
-      .setMimeTypes(allMimes);
+      .setMimeTypes(mimeFilter);
+
+    // Shared with me tab — files shared by others
+    const sharedView = new google.picker.DocsView()
+      .setLabel('Shared with me')
+      .setOwnedByMe(false)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setMode(google.picker.DocsViewMode.LIST)
+      .setMimeTypes(mimeFilter);
+
+    // Shared drives tab — must be separate, cannot combine with setOwnedByMe or setParent
+    const sharedDrivesView = new google.picker.DocsView()
+      .setLabel('Shared drives')
+      .setEnableDrives(true)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setMode(google.picker.DocsViewMode.LIST)
+      .setMimeTypes(mimeFilter);
 
     const picker = new google.picker.PickerBuilder()
-      .addView(view)
+      .addView(myDriveView)
+      .addView(sharedView)
+      .addView(sharedDrivesView)
       .setOAuthToken(token)
       .setOrigin(window.location.origin)
       .setDeveloperKey('AIzaSyCUPSZI633zWMh_4EdZ9Ih7_MnDxvtBNis')
