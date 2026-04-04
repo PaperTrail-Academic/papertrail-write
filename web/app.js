@@ -604,6 +604,8 @@ async function openDrivePicker(idx) {
     return;
   }
 
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
   _loadGapiPicker(() => {
     const mimeFilter = [
       'application/pdf',
