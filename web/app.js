@@ -616,12 +616,14 @@ async function openDrivePicker(idx) {
     const view = new google.picker.DocsView()
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
+      .setMode(google.picker.DocsViewMode.LIST)
       .setMimeTypes(allMimes);
 
     const picker = new google.picker.PickerBuilder()
       .addView(view)
       .setOAuthToken(token)
       .setOrigin(window.location.origin)
+      .setAppId('18964593029')
       .setDeveloperKey('AIzaSyCUPSZI633zWMh_4EdZ9Ih7_MnDxvtBNis')
       .setCallback((data) => _onDriveFilePicked(idx, data, token))
       .build();
